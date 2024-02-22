@@ -1,3 +1,6 @@
+/w64devkit
+/target
+
 # Prerequisites
 *.d
 
