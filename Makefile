@@ -14,13 +14,17 @@ else
 	TARGET   := release
 	CPPFLAGS := -I$(INCDIR) -finput-charset=UTF-8 -MMD
 	CFLAGS   := -Wall -Wpedantic -c -O3 -std=c2x
-	LDFLAGS  := 
+	ifeq ($(OS),Windows_NT)
+		LDFLAGS  := -mwindows
+	else
+		LDFLAGS  := 
+	endif
 endif
 
 OBJDIR := obj/$(TARGET)
 
 CC  := gcc
-EXE := target/$(TARGET)/Main
+EXE := target/$(TARGET)/Main.exe
 
 # Disable built-in rules and variables
 MAKEFLAGS += --no-builtin-rules
@@ -53,7 +57,7 @@ endef
 # Get all source files recursively
 SRC         := $(shell find $(SRCDIR)/ -type f)
 ifdef DEBUG
-	SRCOBJS     := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.dll,$(filter-out $(SRCDIR)/$(notdir $(EXE)).c,$(SRC))))
+	SRCOBJS     := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.dll,$(filter-out $(SRCDIR)/$(notdir $(basename $(EXE))).c,$(SRC))))
 else
 	SRCOBJS     := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRC)))
 endif
@@ -78,9 +82,9 @@ $(call get_suffix,.dll,$(SRC)) : $(OBJDIR)/%.dll : %.c
 ifdef DEBUG
 dlls_only: $(SRCOBJS)
 
-$(EXE): $(SRCOBJS) $(OBJDIR)/$(SRCDIR)/$(notdir $(EXE)).o
+$(EXE): $(SRCOBJS) $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $(EXE))).o
 	@mkdir -p target/$(TARGET)
-	$(CC) -o $@ $(OBJDIR)/$(SRCDIR)/$(notdir $(@)).o $(LDFLAGS)
+	$(CC) -o $@ $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $@)).o $(LDFLAGS)
 else
 $(EXE): $(SRCOBJS)
 	@mkdir -p target/$(TARGET)

@@ -1,7 +1,6 @@
 #include "log.h"
 #include "vector/vector.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 
 int main(int argc, char* argv[])
@@ -40,6 +39,4 @@ int main(int argc, char* argv[])
 
 	DEBUG_DLCLOSE(vector);
 	LOGF_INFO("Vector sum: %u", sum);
-
-	printf("Hello, world!\n");
 }
