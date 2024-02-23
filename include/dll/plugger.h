@@ -1,14 +1,7 @@
+#undef DLL_X
+#define DLL_X(fName, ret, ...) fName,
+
 #ifdef DEBUG
-	#define DEBUG_DECLARE_VTABLE(name) \
-		typedef struct\
-		{\
-			FUNCTIONS\
-		} VTable##name;
-	#define DEBUG_DEFINE_VTABLE(name) \
-		volatile VTable##name vTable##name =\
-		{\
-			FUNCTIONS\
-		};
 	#ifdef _WIN32
 		#define WIN32_LEAN_AND_MEAN
 		#include <windows.h>
@@ -59,10 +52,6 @@
 			} while(0)
 	#endif /* _WIN32 */
 #else /* !defined(DEBUG) */
-	#undef DEBUG_X
-	#define DEBUG_X(fName, ret, ...) ret fName(__VA_ARGS__);
-	#define DEBUG_DECLARE_VTABLE(name)
-	#define DEBUG_DEFINE_VTABLE(name)
 	#define DEBUG_DLOPEN(dir, libName) while(0)
 	#define DEBUG_DLSYM(libName, symName) while(0)
 	#define DEBUG_DLCLOSE(libName) while(0)

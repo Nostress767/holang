@@ -28,8 +28,12 @@ int main(int argc, char* argv[])
 	Vector *vecTest = vector_init(sizeof intTest);
 	for(usize j = 0; j < testSize; ++j){
 		intTest = rand();
-		vector_push_back(vecTest, &intTest);
-		vector_at(vecTest, j, &intTest);
+		VectorError r = vector_push_back(vecTest, &intTest);
+		if(r != vectorErrorSuccess)
+			break;
+		r = vector_at(vecTest, j, &intTest);
+		if(r != vectorErrorSuccess)
+			break;
 		sum += intTest;
 	}
 	vector_uninit(vecTest);

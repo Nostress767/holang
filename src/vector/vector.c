@@ -1,25 +1,26 @@
 #define DLL_HEADER_SOURCE
 #include "vector/vector_internal.h"
-#undef DLL_HEADER_SOURCE
-
-#undef DEBUG_X
-#define DEBUG_X(fName, ret, ...) fName,
 DEBUG_DEFINE_VTABLE(vector)
+#undef DLL_HEADER_SOURCE
 
 #include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-constexpr usize initialSize = 128;
-
 Vector* vector_init(const usize sz)
 {
 	LOGF_TRACE("sz = %zu", sz);
 	Vector *vec = malloc(sizeof *vec);
-	vec->data = malloc(sizeof(u8[initialSize]) * sz);
+	if(!vec)
+		return nullptr;
+	vec->data = malloc(sizeof(u8[vectorInitialSize]) * sz);
+	if(!vec->data){
+		free(vec);
+		return nullptr;
+	}
 	vec->sz = sz;
-	vec->vectorSize = initialSize;
+	vec->vectorSize = vectorInitialSize;
 	vec->n = 0;
 	return vec;
 }
@@ -31,66 +32,79 @@ void vector_uninit(Vector *vec)
 	free(vec);
 }
 
-void vector_swap(Vector *vecA, Vector *vecB)
+void vector_swap(Vector vecA[restrict static 1], Vector vecB[restrict static 1])
 {
 	Vector tmp = *vecA;
 	*vecA = *vecB;
 	*vecB = tmp;
 }
 
-void vector_at(const Vector *vec, const usize index, void *out)
+VectorError vector_at(Vector vec[restrict const static 1], const usize index, void *out)
 {
 	/* LOGF_TRACE("index = %zu", index); */
-	if(index < vec->n)
+	if(index < vec->n){
 		memcpy(out, &vec->data[index], vec->sz);
+		return vectorErrorSuccess;
+	}
+	return vectorErrorOutOfBounds;
 }
 
-void vector_front(const Vector *vec, void *out)
+VectorError vector_front(Vector vec[restrict const static 1], void *out)
 {
-	if(vec->n)
+	if(vec->n){
 		memcpy(out, &vec->data[0], vec->sz);
+		return vectorErrorSuccess;
+	}
+	return vectorErrorEmpty;
 }
 
-void vector_back(const Vector *vec, void *out)
+VectorError vector_back(Vector vec[restrict const static 1], void *out)
 {
-	if(vec->n)
+	if(vec->n){
 		memcpy(out, &vec->data[vec->n - 1], vec->sz);
+		return vectorErrorSuccess;
+	}
+	return vectorErrorEmpty;
 }
 
-const u8* vector_get_data(const Vector *vec)
+const u8* vector_get_data(Vector vec[const static 1])
 {
 	return vec->data;
 }
 
-bool vector_empty(const Vector *vec)
+bool vector_empty(Vector vec[const static 1])
 {
 	return vec->n == 0;
 }
 
-u32 vector_size(const Vector *vec)
+u32 vector_size(Vector vec[const static 1])
 {
 	return vec->n;
 }
 
-usize vector_struct_size(const Vector *vec)
+usize vector_struct_size(Vector vec[const static 1])
 {
 	return vec->sz;
 }
 
-usize vector_capacity(const Vector *vec)
+usize vector_capacity(Vector vec[const static 1])
 {
 	return vec->vectorSize;
 }
 
-void vector_reserve(Vector *vec, u32 reserveSize)
+VectorError vector_reserve(Vector vec[static 1], u32 reserveSize)
 {
 	if(reserveSize > vec->vectorSize){
 		vec->vectorSize = reserveSize;
 		vec->data = realloc(vec->data, sizeof(u8[vec->vectorSize]) * vec->sz);
+		if(!vec->data)
+			return vectorErrorOutOfMemory;
 	}
+
+	return vectorErrorSuccess;
 }
 
-void vector_push_back(Vector *vec, const void *data)
+VectorError vector_push_back(Vector vec[static 1], const void *data)
 {
 	/* LOGF_TRACE("Vector (BEFORE) = { .vectorSize = %zu, .sz = %zu, .n = %u, .data = %p }", vec->vectorSize, vec->sz, vec->n, vec->data); */
 	memcpy(&vec->data[vec->n++], data, vec->sz);
@@ -98,54 +112,79 @@ void vector_push_back(Vector *vec, const void *data)
 	if(vec->n == vec->vectorSize){
 		vec->vectorSize *= 2;
 		vec->data = realloc(vec->data, sizeof(u8[vec->vectorSize]) * vec->sz);
+		if(!vec->data)
+			return vectorErrorOutOfMemory;
 	}
 	/* LOGF_TRACE("Vector (AFTER) = { .vectorSize = %zu, .sz = %zu, .n = %u, .data = %p }", vec->vectorSize, vec->sz, vec->n, vec->data); */
+	return vectorErrorSuccess;
 }
 
-void vector_insert_at(Vector *vec, const usize index, const void *data)
+VectorError vector_insert_at(Vector vec[restrict static 1], const usize index, const void *data)
 {
+	if(index >= vec->n)
+		return vectorErrorOutOfBounds;
+
 	memmove(&vec->data[index + vec->sz], &vec->data[index], (vec->n++) - index);
 	memcpy(&vec->data[index], data, vec->sz);
 
 	if(vec->n == vec->vectorSize){
 		vec->vectorSize *= 2;
 		vec->data = realloc(vec->data, sizeof(u8[vec->vectorSize]) * vec->sz);
+		if(!vec->data)
+			return vectorErrorOutOfMemory;
 	}
+	return vectorErrorSuccess;
 }
 
-void vector_erase_at(Vector *vec, const usize index)
+VectorError vector_erase_at(Vector vec[static 1], const usize index)
 {
-	if(vec->n)
-		--vec->n;
-	if(index < vec->n)
-		memmove(&vec->data[index], &vec->data[index + vec->sz], vec->n - index);
+	if(vec->n == 0)
+		return vectorErrorEmpty;
+
+	--vec->n;
+
+	if(index >= vec->n)
+		return vectorErrorOutOfBounds;
+
+	memmove(&vec->data[index], &vec->data[index + vec->sz], vec->n - index);
 
 	if(vec->n < vec->vectorSize / 4){
 		vec->vectorSize /= 2;
 		vec->data = realloc(vec->data, sizeof(u8[vec->vectorSize]) * vec->sz);
+		if(!vec->data)
+			return vectorErrorOutOfMemory; /* This seems ridiculous, but apparently can happen (https://stackoverflow.com/questions/12125308/can-realloc-fail-return-null-when-trimming#:~:text=Yes%2C%20it%20can.&text=For%20example%2C%20if%20a%20particular,will%20fail%20and%20return%20NULL%20.) */
 	}
+	return vectorErrorSuccess;
 }
 
-void vector_pop_back(Vector *vec)
+VectorError vector_pop_back(Vector vec[static 1])
 {
-	if(vec->n)
-		--vec->n;
+	if(vec->n == 0)
+		return vectorErrorEmpty;
+
+	--vec->n;
 
 	if(vec->n < vec->vectorSize / 4){
 		vec->vectorSize /= 2;
 		vec->data = realloc(vec->data, sizeof(u8[vec->vectorSize]) * vec->sz);
+		if(!vec->data)
+			return vectorErrorOutOfMemory; /* Same reason as vector_erase_at */
 	}
+	return vectorErrorSuccess;
 }
 
-void vector_clear(Vector *vec)
+VectorError vector_clear(Vector vec[static 1])
 {
 	vec->n = 0;
-	vec->vectorSize = initialSize;
+	vec->vectorSize = vectorInitialSize;
 	free(vec->data);
-	vec->data = malloc(sizeof(u8[initialSize]) * vec->sz);
+	vec->data = malloc(sizeof(u8[vectorInitialSize]) * vec->sz);
+	if(!vec->data)
+		return vectorErrorOutOfMemory;
+	return vectorErrorSuccess;
 }
 
-void vector_sort(Vector *vec, int (*compar)(const void*, const void*))
+void vector_sort(Vector vec[static 1], int (*compar)(const void*, const void*))
 {
 	qsort(vec->data, vec->n, vec->sz, compar);
 }
