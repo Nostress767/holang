@@ -179,7 +179,19 @@ TEST(hash_table, hash_table_half_siphash)
 
 TEST(hash_table, hash_table_init)
 {
-	TEST_IGNORE();
+	u32 someData = 0;
+	constexpr usize dataSize = sizeof someData;
+	HashTable ht = hash_table_init(dataSize);
+	TEST_ASSERT_NOT_NULL(ht);
+	hash_table_uninit(ht);
+
+	UnityMalloc_MakeMallocFailAfterCount(0);
+	ht = hash_table_init(dataSize);
+	TEST_ASSERT_NULL(hashTableErrorOutOfMemory);
+
+	UnityMalloc_MakeMallocFailAfterCount(1);
+	ht = hash_table_init(dataSize);
+	TEST_ASSERT_NULL(hashTableErrorOutOfMemory);
 }
 
 TEST(hash_table, hash_table_reserve)

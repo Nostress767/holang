@@ -127,6 +127,7 @@ HashTable* hash_table_init_with_hash_key(const usize sz, u64 customHashKey)
 	ht->buckets = vector_init(sizeof emptyBucket);
 	if(ht->buckets == nullptr){
 		DEBUG_DLCLOSE(vector);
+		free(ht);
 		return nullptr;
 	}
 	/* No need to check for errors since we know this won't be out of bounds */
