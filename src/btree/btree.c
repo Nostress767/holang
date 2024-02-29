@@ -7,13 +7,20 @@ DEBUG_DEFINE_VTABLE(btree)
 
 #include <stdio.h>
 
-void *btree_search (void *key, TREE *bt) {
+bool btree_search (TREE bt[restrict const static 1], const void *key, void *out)
+{
 	if (!bt->root)
-		return NULL;
-	return _btree_search (key, bt->root, bt);
+		return false;
+	if (out) {
+		void *tmp = _btree_search (key, bt->root, bt);
+		if(!tmp)
+			return false;
+		memcpy(out, tmp, bt->sz);
+	}
+	return true;
 }
 
-void btree_insert(void *key, TREE *bt)
+void btree_insert (TREE bt[restrict static 1], const void *key)
 {
 	if (bt->root == NULL) {
 		
@@ -41,7 +48,7 @@ void btree_insert(void *key, TREE *bt)
 	}
 }
 
-TREE *btree_init (usize sz, u32 order, int (*compar)(const void*, const void*))
+TREE *btree_init (const usize sz, const u32 order, int (*compar)(const void*, const void*))
 {
 	LOGF_TRACE("BTree = { .root = %p, .order = %u, .n = %u, .sz = %zu }", NULL, order, 0, sz);
 	TREE *bt = malloc (sizeof (TREE));
@@ -59,14 +66,14 @@ TREE *btree_init (usize sz, u32 order, int (*compar)(const void*, const void*))
 	return bt;
 }
 
-void btree_erase (void *key, TREE *bt)
+void btree_erase (TREE bt[restrict static 1], const void *key)
 {
 	if (!bt->root)
 		return;
 	_btree_erase (key, bt->root, bt);
 }
 
-void btree_uinit (TREE *bt)
+void btree_uninit (TREE *bt)
 {
 	if (bt->root)
 		_btree_uinit (bt->root);
@@ -74,7 +81,7 @@ void btree_uinit (TREE *bt)
 	free (bt);
 }
 
-void btree_print (TREE *bt)
+void btree_print (TREE bt[const static 1])
 {
 	if (!bt->root)
 		return;

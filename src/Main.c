@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 	DEBUG_DLOPEN("btree/", btree);
 	DEBUG_DLSYM(btree, btree_init);
 	DEBUG_DLSYM(btree, btree_insert);
-	DEBUG_DLSYM(btree, btree_uinit);
+	DEBUG_DLSYM(btree, btree_uninit);
 	DEBUG_DLSYM(btree, btree_erase);
 	DEBUG_DLSYM(btree, btree_search);
 	DEBUG_DLSYM(btree, btree_print);

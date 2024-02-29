@@ -49,7 +49,7 @@ TEST(btree, btree_all)
 	usize btSize = 1000;
 	usize btN = 13;
 	testStruct insert;
-	testStruct *search;
+	testStruct search;
 	testStruct data[btSize];
 	
 	for (usize i = 0; i < 13; i++) {
@@ -68,30 +68,30 @@ TEST(btree, btree_all)
 		
 		for (usize j = 0; j < btSize; j++) {
 			insert = data[j];
-			btree_insert (&insert, bt[ (i / (btN / 13))]);
+			btree_insert (bt[ (i / (btN / 13))], &insert);
 		}
 		
 		shuffleTestStruct (data, btSize);
 		
 		for (usize j = 0; j < btSize; j++) {
 			insert = data[j];
-			btree_erase (&insert, bt[ (i / (btN / 13))]);
+			btree_erase (bt[ (i / (btN / 13))], &insert);
 			
 			for (usize k = 0; k < btSize; k++) {
 				insert = data[k];
-				search = btree_search (&insert, bt[ (i / (btN / 13))]);
+				bool result = btree_search (bt[ (i / (btN / 13))], &insert, &search);
 
 				if (k <= j)
-					TEST_ASSERT_NULL(search);
+					TEST_ASSERT_EQUAL(false, result);
 				else {
-					TEST_ASSERT_EQUAL (data[k].num, search->num);
-					TEST_ASSERT_EQUAL (data[k].key, search->key);
+					TEST_ASSERT_EQUAL (data[k].num, search.num);
+					TEST_ASSERT_EQUAL (data[k].key, search.key);
 				}
 			}
 		}
 	}
 	
 	for (usize i = 0; i < 13; i++) {
-		btree_uinit (bt[i]);
+		btree_uninit (bt[i]);
 	}
 }
