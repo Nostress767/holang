@@ -5,19 +5,21 @@
 INCDIR := include
 SRCDIR := src
 
+CFLAGS   := -Werror -Wall -Wpedantic -std=c2x
+CPPFLAGS := -I$(INCDIR) -finput-charset=UTF-8 -MMD
+LDFLAGS  := 
 ifdef DEBUG
 	TARGET   := debug
-	CPPFLAGS := -I$(INCDIR) -finput-charset=UTF-8 -MMD -DDEBUG -DTESTING
-	CFLAGS   := -Wall -Wpedantic -fPIC -g -Og -std=c2x
-	LDFLAGS  := 
+	CPPFLAGS += -DDEBUG
+	CFLAGS   += -fPIC
+	CFLAGS   += -g
+	CFLAGS   += -Og
 else
 	TARGET   := release
-	CPPFLAGS := -I$(INCDIR) -finput-charset=UTF-8 -MMD
-	CFLAGS   := -Wall -Wpedantic -c -O3 -std=c2x
+	CFLAGS   += -c
+	CFLAGS   += -O3
 	ifeq ($(OS),Windows_NT)
-		LDFLAGS  := -mwindows
-	else
-		LDFLAGS  := 
+		LDFLAGS  += -mwindows
 	endif
 endif
 
@@ -70,11 +72,17 @@ MAKEFILES   := $(addsuffix .d,$(basename $(SRCOBJS)))
 # Default target
 all: $(EXE)
 
+.PHONY: tests
+# Test target
+tests:
+	cd tests && make clean all
+
 # Compile sources
 $(call get_suffix,.o  ,$(SRC)) : $(OBJDIR)/%.o : %.c
 	$(call create_src_obj,-c)
 
 $(call get_suffix,.dll,$(SRC)) : $(OBJDIR)/%.dll : %.c
+	$(info The following is private information: $^)
 	$(call create_src_obj,-shared)
 
 ## Compile executable

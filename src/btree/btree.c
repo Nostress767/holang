@@ -6,9 +6,7 @@ DEBUG_DEFINE_VTABLE(btree)
 #include "log.h"
 
 #include <stdio.h>
-
 #include <stdlib.h>
-
 #include <string.h>
 
 #define btree_min(bt) (bt->order+1)/2-1
@@ -19,6 +17,8 @@ DEBUG_DEFINE_VTABLE(btree)
 #endif
 
 void *btree_search (void *key, TREE *bt) {
+	if (!bt->root)
+		return NULL;
 	return _btree_search (key, bt->root, bt);
 }
 
@@ -70,18 +70,23 @@ TREE *btree_init (usize sz, u32 order, int (*compar)(const void*, const void*))
 
 void btree_erase (void *key, TREE *bt)
 {
+	if (!bt->root)
+		return;
 	_btree_erase (key, bt->root, bt);
 }
 
 void btree_uinit (TREE *bt)
 {
-	_btree_uinit (bt->root);
+	if (bt->root)
+		_btree_uinit (bt->root);
 	free (bt->auxData);
 	free (bt);
 }
 
 void btree_print (TREE *bt)
 {
+	if (!bt->root)
+		return;
 	_btree_print (bt->root, bt);
 }
 
@@ -221,7 +226,6 @@ bool _btree_erase (void *key, NODE *node, TREE *bt)
 							free (node->data);
 							free (node->child);
 							free (node);
-
 						} else
 							return true;
 					}
@@ -252,6 +256,12 @@ bool _btree_erase (void *key, NODE *node, TREE *bt)
 		node->n--;
 		
 		_load_btree_aux (bt, node->data, NULL);
+		
+		if (bt->root == node && node->n == 0) {
+			bt->root = NULL;
+			free (node->data);
+			free (node);
+		}
 		
 		if (node->n >= btree_min(bt)) {
 			return true;
@@ -373,7 +383,7 @@ void _print_node (NODE *node)
 	printf ("\n");
 	if (node->index) {
 		for (int i = 0; i <= node->n; i++)
-			printf ("%p ", node->child[i]);
+			printf ("%p ", (void*)node->child[i]);
 		printf ("\n");
 	}
 	printf ("\n");
