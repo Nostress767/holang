@@ -1,4 +1,3 @@
-#include "log.h"
 #include "vector/vector.h"
 #include "btree/btree.h"
 
