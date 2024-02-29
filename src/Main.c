@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 	constexpr usize testSize = 767;
 	u32 sum = 0;
 	u32 intTest;
-	Vector *vecTest = vector_init(sizeof intTest);
+	Vector vecTest = vector_init(sizeof intTest);
 	for(usize j = 0; j < testSize; ++j){
 		intTest = rand();
 		VectorError r = vector_push_back(vecTest, &intTest);
