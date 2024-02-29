@@ -24,12 +24,21 @@ typedef struct TREE
 	NODE *auxNode;	/* Used for internal operations */
 } TREE;
 
-u32 _btree_bsearch (void *key, NODE *node, TREE *bt);
+i64 _btree_bsearch (void *key, NODE *node, TREE *bt);
 bool _btree_insert (void *key, NODE *node, TREE *bt);
 NODE *_malloc_node (TREE *bt, bool index);
 void _load_btree_aux (TREE *bt, void *key, NODE *node);
 void _btree_split (NODE *node, TREE *bt, u32 pos);
 void _btree_uinit (NODE *node);
+bool _btree_erase (void *key, NODE *node, TREE *bt);
+bool _btree_borrow (NODE *node, TREE *bt, u32 pos);
+bool _btree_merge (NODE *node, TREE *bt, i64 pos);
+void _print_node (NODE *node);
+void *_btree_search (void *key, NODE *node, TREE *bt);
+void _btree_print (NODE *node, TREE *bt);
+void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz);
+void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz);
+void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz);
 
 #define BTREE_INTERNAL
 #include "btree.h"
