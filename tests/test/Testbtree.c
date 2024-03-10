@@ -42,6 +42,19 @@ void shuffleTestStruct(testStruct *array, size_t n)
     }
 }
 
+int usize_compare(const void *a, const void *b)
+{
+	return *((usize*)a) < *((usize*)b);
+}
+
+TEST(btree, btree_init)
+{
+	usize data;
+	TREE *bt = btree_init(sizeof data, 3, usize_compare);
+	TEST_ASSERT_NOT_NULL(bt);
+	btree_uninit(bt);
+}
+
 TEST(btree, btree_all)
 {
 	
@@ -49,7 +62,6 @@ TEST(btree, btree_all)
 	usize btSize = 1000;
 	usize btN = 13;
 	testStruct insert;
-	testStruct search;
 	testStruct data[btSize];
 	
 	for (usize i = 0; i < 13; i++) {
@@ -79,13 +91,13 @@ TEST(btree, btree_all)
 			
 			for (usize k = 0; k < btSize; k++) {
 				insert = data[k];
-				bool result = btree_search (bt[ (i / (btN / 13))], &insert, &search);
+				testStruct *search = btree_search (bt[ (i / (btN / 13))], &insert);
 
 				if (k <= j)
-					TEST_ASSERT_EQUAL(false, result);
+					TEST_ASSERT_NULL(search);
 				else {
-					TEST_ASSERT_EQUAL (data[k].num, search.num);
-					TEST_ASSERT_EQUAL (data[k].key, search.key);
+					TEST_ASSERT_EQUAL (data[k].num, search->num);
+					TEST_ASSERT_EQUAL (data[k].key, search->key);
 				}
 			}
 		}

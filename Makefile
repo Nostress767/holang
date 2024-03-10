@@ -12,7 +12,7 @@ ifdef DEBUG
 	TARGET   := debug
 	CPPFLAGS += -DDEBUG
 	CFLAGS   += -fPIC
-	CFLAGS   += -g
+	CFLAGS   += -ggdb
 	CFLAGS   += -Og
 else
 	TARGET   := release
@@ -75,14 +75,17 @@ all: $(EXE)
 .PHONY: tests
 # Test target
 tests:
-	cd tests && make clean all
+	make -C tests clean all
+
+.PHONY: tests-report
+tests-report:
+	make -C tests report
 
 # Compile sources
 $(call get_suffix,.o  ,$(SRC)) : $(OBJDIR)/%.o : %.c
 	$(call create_src_obj,-c)
 
 $(call get_suffix,.dll,$(SRC)) : $(OBJDIR)/%.dll : %.c
-	$(info The following is private information: $^)
 	$(call create_src_obj,-shared)
 
 ## Compile executable

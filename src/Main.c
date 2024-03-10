@@ -1,11 +1,12 @@
 #include "vector/vector.h"
 #include "btree/btree.h"
 
+#include "log.h"
+
 #include <stdlib.h>
 
 int main(int argc, char* argv[])
 {
-	
 	//LOG_ERROR("test");
 	//LOG_INFO("test");
 	//LOG_TRACE("test");
@@ -26,22 +27,18 @@ int main(int argc, char* argv[])
 	u32 sum = 0;
 	u32 intTest;
 	
-	Vector vecTest = vector_init(sizeof intTest);
+	Vector *vecTest = vector_init(sizeof intTest);
 	for(usize j = 0; j < testSize; ++j){
 		intTest = rand();
-		VectorError r = vector_push_back(vecTest, &intTest);
-		if(r != vectorErrorSuccess)
-			break;
-		r = vector_at(vecTest, j, &intTest);
-		if(r != vectorErrorSuccess)
-			break;
-		sum += intTest;
+		vector_push_back(vecTest, &intTest);
+		u32 *getBack = vector_at(vecTest, j);
+		sum += *getBack;
 	}
 	
 	vector_uninit(vecTest);
 
 	DEBUG_DLCLOSE(vector);
-	//LOGF_INFO("Vector sum: %u", sum);
+	LOGF_INFO("Vector sum: %u", sum);
 
 	DEBUG_DLOPEN("btree/", btree);
 	DEBUG_DLSYM(btree, btree_init);

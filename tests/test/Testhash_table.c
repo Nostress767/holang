@@ -166,42 +166,214 @@ TEST(hash_table, hash_table_half_siphash)
 	for(u8 i = 0; i < kLen; ++i)
 		k[i] = i;
 	for(usize i = 0; i < sizeof vectorsHSip32 / sizeof *vectorsHSip32; ++i){
-		u8 out[hSip32OutSize];
-		hash_table_half_siphash(i, in, k, sizeof out / sizeof *out, out);
-		TEST_ASSERT_EQUAL(0, memcmp(out, vectorsHSip32[i], hSip32OutSize));
+		u32 out = hash_table_half_siphash(i, in, k);
+		TEST_ASSERT_EQUAL(0, memcmp(&out, vectorsHSip32[i], hSip32OutSize));
 	}
+	/*
 	for(usize i = 0; i < sizeof vectorsHSip64 / sizeof *vectorsHSip64; ++i){
-		u8 out[hSip64OutSize];
-		hash_table_half_siphash(i, in, k, sizeof out / sizeof *out, out);
-		TEST_ASSERT_EQUAL(0, memcmp(out, vectorsHSip64[i], hSip64OutSize));
+		u32 out = hash_table_half_siphash(i, in, k);
+		TEST_ASSERT_EQUAL(0, memcmp(&out, vectorsHSip64[i], hSip64OutSize));
 	}
+	*/
 }
 
 TEST(hash_table, hash_table_init)
 {
-	u32 someData = 0;
-	constexpr usize dataSize = sizeof someData;
-	HashTable ht = hash_table_init(dataSize);
+	u32 someKey = 0, someValue = 0;
+	constexpr usize keySz = sizeof someKey;
+	constexpr usize valueSz = sizeof someValue;
+	HashTable *ht = hash_table_init(keySz, valueSz);
 	TEST_ASSERT_NOT_NULL(ht);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
 	hash_table_uninit(ht);
 
 	UnityMalloc_MakeMallocFailAfterCount(0);
-	ht = hash_table_init(dataSize);
-	TEST_ASSERT_NULL(hashTableErrorOutOfMemory);
+	ht = hash_table_init(keySz, valueSz);
+	TEST_ASSERT_NULL(ht);
 
 	UnityMalloc_MakeMallocFailAfterCount(1);
-	ht = hash_table_init(dataSize);
-	TEST_ASSERT_NULL(hashTableErrorOutOfMemory);
+	ht = hash_table_init(keySz, valueSz);
+	TEST_ASSERT_NULL(ht);
 }
 
 TEST(hash_table, hash_table_reserve)
 {
 	TEST_IGNORE();
+	/*
+	char *someKey = "String key";
+	constexpr usize dataSize = sizeof someKey;
+	HashTable *ht = hash_table_init(dataSize, char_ptr_size);
+	TEST_ASSERT_NOT_NULL(ht);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	hash_table_reserve(ht, SIZE_MAX);
+	TEST_ASSERT_EQUAL(hashTableErrorOutOfMemory, hash_table_get_last_error(ht));
+	TEST_ASSERT_EQUAL(hashTableInitialSize, hash_table_capacity(ht));
+
+	hash_table_reserve(ht, hashTableInitialSize - 2);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+	TEST_ASSERT_EQUAL(hashTableInitialSize, hash_table_capacity(ht));
+
+	UnityMalloc_MakeMallocFailAfterCount(0);
+	hash_table_reserve(ht, 1 << 8);
+	UnityMalloc_MakeMallocFailAfterCount(-1);
+	TEST_ASSERT_EQUAL(hashTableErrorOutOfMemory, hash_table_get_last_error(ht));
+	TEST_ASSERT_EQUAL(hashTableInitialSize, hash_table_capacity(ht));
+
+	// TODO
+	//UnityMalloc_MakeMallocFailAfterCount(0);
+	//e = hash_table_reserve(ht, 1 << 8);
+	//UnityMalloc_MakeMallocFailAfterCount(-1);
+	//TEST_ASSERT_EQUAL(hashTableErrorOutOfMemory, hash_table_get_last_error(ht));
+	//TEST_ASSERT_EQUAL(hashTableInitialSize, hash_table_capacity(ht));
+
+	hash_table_reserve(ht, 767);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+	TEST_ASSERT_EQUAL(1 << 10, hash_table_capacity(ht));
+
+	hash_table_uninit(ht);
+	*/
 }
+
+struct SomeStruct
+{
+	const char someChars[15];
+	f32 someFloats[3];
+	i16 someShort;
+	struct SomeStruct *anotherStruct;
+};
 
 TEST(hash_table, hash_table_insert)
 {
 	TEST_IGNORE();
+	/*
+	char *someKey = "String key";
+	constexpr usize dataSize = sizeof(struct SomeStruct);
+	HashTable *ht = hash_table_init(dataSize, char_ptr_size);
+	TEST_ASSERT_NOT_NULL(ht);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	struct SomeStruct a = {
+		.someChars = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', },
+		.someFloats = { .767f, 3.14f, 69.420f },
+		.someShort = -1,
+		.anotherStruct = nullptr,
+	};
+	hash_table_insert(ht, nullptr, &a);
+	TEST_ASSERT_EQUAL(hashTableErrorNullKeyInput, hash_table_get_last_error(ht));
+	hash_table_insert(ht, &"String key 2", nullptr);
+	TEST_ASSERT_EQUAL(hashTableErrorNullValueInput, hash_table_get_last_error(ht));
+	hash_table_insert(ht, &someKey, &a);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+	hash_table_insert(ht, &"String key 2", &a);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	struct SomeStruct b = {
+		.someChars = { 'h', 'i', 'j', 'k', 'l', 'm', 'n', },
+		.someFloats = { .768f, 1.61f, 322 },
+		.someShort = 0xdef,
+		.anotherStruct = &a,
+	};
+	hash_table_insert(ht, &"String key 2", &b);
+	TEST_ASSERT_EQUAL(hashTableErrorKeyAlreadyExists, hash_table_get_last_error(ht));
+	hash_table_insert(ht, &"String key 3", &b);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	struct SomeStruct c = {
+		.someChars = { 'o', 'p', 'q', 'r', 's', 't', 'u', },
+		.someFloats = { a.someFloats[0], a.someFloats[1], a.someFloats[2] },
+		.someShort = b.someShort,
+		.anotherStruct = &b,
+	};
+	UnityMalloc_MakeMallocFailAfterCount(0);
+	hash_table_insert(ht, &"String key 4", &c);
+	TEST_ASSERT_EQUAL(hashTableErrorOutOfMemory, hash_table_get_last_error(ht));
+	UnityMalloc_MakeMallocFailAfterCount(1);
+	hash_table_insert(ht, &"String key 4", &c);
+	TEST_ASSERT_EQUAL(hashTableErrorOutOfMemory, hash_table_get_last_error(ht));
+
+	hash_table_uninit(ht);
+	*/
+}
+
+TEST(hash_table, hash_table_at)
+{
+	TEST_IGNORE();
+
+	/*
+	char *someKey = "String key";
+	char *someData = "String value";
+	constexpr usize dataSize = sizeof someData;
+	HashTable *ht = hash_table_init(dataSize, char_ptr_size);
+	TEST_ASSERT_NOT_NULL(ht);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	hash_table_insert(ht, &someKey, &someData);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	someKey = "String key 2"; // String literals have static duration
+	hash_table_insert(ht, &someKey, &someData);
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	char problemKey[20] = {};
+	for(usize i = 0; i < hashTableInitialSize; ++i){ // Pigeonhole principle
+		char someOtherKey[20] = { i + 1, ' ', 'k', 'e', 'y' };
+		char someOtherData[20] = { i + 1, ' ', 'd', 'a', 't', 'a' };
+		char *persistentKey = malloc(char_ptr_size(&someOtherKey));
+		strncpy(persistentKey, someOtherKey, char_ptr_size(&someOtherKey));
+		char *persistentData = malloc(char_ptr_size(&someOtherData));
+		strncpy(persistentData, someOtherData, char_ptr_size(&someOtherData));
+		UnityMalloc_MakeMallocFailAfterCount(2);
+		hash_table_insert(ht, &persistentKey, &persistentData);
+		UnityMalloc_MakeMallocFailAfterCount(-1);
+
+		if(hashTableErrorOutOfMemory == hash_table_get_last_error(ht)){
+			strcpy(problemKey, someOtherData);
+			break;
+		}
+		TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+	}
+
+	someData = "table is getting full";
+	hash_table_insert(ht, &problemKey, &someData); // Now show that it works
+	TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+
+	char *getData;
+	bool r = hash_table_at(ht, &problemKey, &getData);
+	TEST_ASSERT_TRUE(r);
+	TEST_ASSERT_EQUAL_STRING(someData, getData);
+
+	for(usize i = 0; i < hashTableInitialSize - 1; ++i){ // Force rehashing 
+		char someOtherKey[20] = { 'k', 'e', 'y', ' ', i + 1 };
+		char someOtherData[20] = { 'd', 'a', 't', 'a', ' ', i + 1 };
+		char *persistentKey = malloc(char_ptr_size(&someOtherKey));
+		strncpy(persistentKey, someOtherKey, char_ptr_size(&someOtherKey));
+		char *persistentData = malloc(char_ptr_size(&someOtherData));
+		strncpy(persistentData, someOtherData, char_ptr_size(&someOtherData));
+		//printf("This is iteration: %zu (%zu)\n", i, strlen(persistentKey));
+		hash_table_insert(ht, &persistentKey, &persistentData);
+		TEST_ASSERT_EQUAL(hashTableErrorSuccess, hash_table_get_last_error(ht));
+	}
+
+	for(usize i = 0; i < hashTableInitialSize; ++i){ // Force rehashing
+		char someOtherKey1[20] = { i + 1, ' ', 'k', 'e', 'y' };
+		char someOtherData1[20] = { i + 1, ' ', 'd', 'a', 't', 'a' };
+		char someOtherKey2[20] = { 'k', 'e', 'y', ' ', i + 1 };
+		char someOtherData2[20] = { 'd', 'a', 't', 'a', ' ', i + 1 };
+		char *getPersistentData;
+		r = hash_table_at(ht, &someOtherKey1, &getPersistentData);
+		if(r){
+			TEST_ASSERT_EQUAL_STRING(someOtherData1, getPersistentData);
+			//free(getPersistentData);
+		}
+
+		hash_table_at(ht, &someOtherKey2, &getPersistentData);
+		TEST_ASSERT_EQUAL_STRING(someOtherData2, getPersistentData);
+		free(getPersistentData);
+	}
+
+	hash_table_uninit(ht);
+	*/
 }
 
 TEST(hash_table, hash_table_erase)

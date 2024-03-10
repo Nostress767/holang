@@ -17,5 +17,6 @@ TEST_GROUP_RUNNER(vector)
 	RUN_TEST_CASE(vector, vector_erase_at);
 	RUN_TEST_CASE(vector, vector_pop_back);
 	RUN_TEST_CASE(vector, vector_clear);
+	RUN_TEST_CASE(vector, vector_sort);
 }
 

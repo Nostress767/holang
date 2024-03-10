@@ -6,9 +6,9 @@ INCDIR     := ../include
 SRCDIR     := ../src
 TESTSRCDIR := test
 
-CFLAGS   := -Werror -Wall -Wpedantic -std=c2x -c -O3
-CPPFLAGS := -include external/unity.h -include external/unity_memory.h -I$(INCDIR) -I. -finput-charset=UTF-8 -MMD
-LDFLAGS  := 
+CFLAGS   := -fprofile-abs-path -fprofile-arcs -ftest-coverage -fanalyzer -Werror -Wall -Wpedantic -std=c2x -c -ggdb -O0
+CPPFLAGS := -DUNITY_OUTPUT_COLOR -include external/unity.h -include external/unity_memory.h -I$(INCDIR) -I. -finput-charset=UTF-8 -MMD
+LDFLAGS  := -lgcov
 
 OBJDIR := obj
 
@@ -56,6 +56,13 @@ MAKEFILES   := $(addsuffix .d,$(basename $(SRCOBJS)))
 # Default target
 all: $(EXE)
 	-@./$(EXE) -v
+
+# Report code coverage
+.PHONY: report
+report:
+	gcov -a -b -c -f -p -H -r $(patsubst %.o,%.c,$(SRCOBJS))
+	@mkdir -p gcovr-report
+	gcovr --root .. --filter ../src/ --html --html-details --html-theme github.dark-green --html-syntax-highlighting --output gcovr-report/coverage.html
 
 # Compile sources
 $(call get_suffix,.o  ,$(SRC)) : $(OBJDIR)/%.o : ../%.c

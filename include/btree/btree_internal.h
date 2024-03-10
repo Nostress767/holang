@@ -6,60 +6,43 @@
 #include "types.h"
 #include "log.h"
 
-typedef struct NODE
-{
-	u32 n;	/* Quantity of elements on the node */
-	union {
-		struct NODE **child;	/*If the node is used for the index, it has child */
-		struct NODE *next;	/*If the node is used for the linked list, it has next */
-	};
-	bool index;	/* The node can be used for the index or for the linked list, it depends on this variable */
-	u8 *data;	/* Raw data of elements */
-} NODE;
+#include "btree.h"
 
-typedef struct TREE
-{
-	NODE *root;	/* Pointer to the root */
-	u32 order;		/* Order of the btree */
-	u32 n;	/* Quantity of nodes */
-	usize sz;	/* Size of data */
-	int (*compar)(const void *a, const void *b);	/* Comparation function used to sort the elements */
-	void *auxData;	/* Used for internal operations */
-	NODE *auxNode;	/* Used for internal operations */
-} TREE;
-
-static inline u32 btree_min(TREE bt[static 1])
+INTERNAL u32 btree_min(TREE bt[static 1])
 {
 	return (bt->order + 1) / 2 - 1;
 }
 
-static inline u32 btree_max(TREE bt[static 1])
+INTERNAL u32 btree_max(TREE bt[static 1])
 {
 	return bt->order - 1;
 }
 
-static inline i64 max(i64 a, i64 b)
+/* Where is this being defined ??? */
+#undef max
+
+INTERNAL i64 max(i64 a, i64 b)
 {
 	return a > b ? a : b;
 }
 
-static inline i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1]);
-static inline bool _btree_insert (const void *key, NODE *node, TREE bt[static 1]);
-static inline NODE *_malloc_node (TREE bt[static 1], bool index);
-static inline void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node);
-static inline void _btree_split (NODE *node, TREE bt[static 1], u32 pos);
-static inline void _btree_uinit (NODE *node);
-static inline bool _btree_erase (const void *key, NODE *node, TREE bt[static 1]);
-static inline bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos);
-static inline bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos);
-static inline void _print_node (NODE *node);
-static inline void *_btree_search (const void *key, NODE *node, TREE bt[static 1]);
-static inline void _btree_print (NODE *node, TREE bt[static 1]);
-static inline void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz);
-static inline void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz);
-static inline void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz);
+INTERNAL i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1]);
+INTERNAL bool _btree_insert (const void *key, NODE *node, TREE bt[static 1]);
+INTERNAL NODE *_malloc_node (TREE bt[static 1], bool index);
+INTERNAL void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node);
+INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos);
+INTERNAL void _btree_uinit (NODE *node);
+INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1]);
+INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos);
+INTERNAL bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos);
+INTERNAL void _print_node (NODE *node);
+INTERNAL void *_btree_search (const void *key, NODE *node, TREE bt[static 1]);
+INTERNAL void _btree_print (NODE *node, TREE bt[static 1]);
+INTERNAL void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz);
+INTERNAL void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz);
+INTERNAL void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz);
 
-static inline void *_btree_search (const void *key, NODE *node, TREE bt[static 1])
+INTERNAL void *_btree_search (const void *key, NODE *node, TREE bt[static 1])
 {
 	i64 pos = _btree_bsearch (key, node, bt);
 	
@@ -71,7 +54,7 @@ static inline void *_btree_search (const void *key, NODE *node, TREE bt[static 1
 	return NULL;
 }
 
-static inline bool _btree_insert (const void *key, NODE *node, TREE bt[static 1])
+INTERNAL bool _btree_insert (const void *key, NODE *node, TREE bt[static 1])
 {
 	i64 pos = _btree_bsearch (key, node, bt);
 
@@ -104,7 +87,7 @@ static inline bool _btree_insert (const void *key, NODE *node, TREE bt[static 1]
 	return true;
 }
 
-static inline void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
+INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
 {
 	NODE *new = _malloc_node (bt, node->index);
 	bt->n++;
@@ -156,7 +139,7 @@ static inline void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
 	}
 }
 
-static inline void _btree_print (NODE *node, TREE bt[static 1])
+INTERNAL void _btree_print (NODE *node, TREE bt[static 1])
 {
 	_print_node (node);
 	if (node->index)
@@ -164,7 +147,7 @@ static inline void _btree_print (NODE *node, TREE bt[static 1])
 			_btree_print (node->child[i], bt);
 }
 
-static inline bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
+INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
 {
 	
 	i64 pos = _btree_bsearch (key, node, bt);
@@ -239,7 +222,7 @@ static inline bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
 	return false;
 }
 
-static inline bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
+INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
 {
 	
 	if (pos < node->n) {
@@ -304,7 +287,7 @@ static inline bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
 	return false;
 }
 
-static inline bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos)
+INTERNAL bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos)
 {
 	NODE *target = node->child[pos-1 + !pos];
 	NODE *right = node->child[pos + !pos];
@@ -343,7 +326,7 @@ static inline bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos)
 	return true;
 }
 
-static inline void _print_node (NODE *node)
+INTERNAL void _print_node (NODE *node)
 {
 	LOGF_TRACE("qttKeys: %d\n", node->n);
 	for (int i = 0; i < node->n; i++)
@@ -357,7 +340,7 @@ static inline void _print_node (NODE *node)
 	LOG_TRACE("\n");
 }
 
-static inline void _btree_uinit (NODE *node)
+INTERNAL void _btree_uinit (NODE *node)
 {
 	//_print_node (node);
 	if (node->index) {
@@ -371,7 +354,7 @@ static inline void _btree_uinit (NODE *node)
 }
 
 
-static inline NODE *_malloc_node (TREE bt[static 1], bool index)
+INTERNAL NODE *_malloc_node (TREE bt[static 1], bool index)
 {
 	
 	NODE *out = malloc(sizeof(NODE));
@@ -391,7 +374,7 @@ static inline NODE *_malloc_node (TREE bt[static 1], bool index)
 	return out;
 }
 
-static inline void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node)
+INTERNAL void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node)
 {
 	if (!key && !node) {
 		memset (bt->auxData, 0, bt->sz);
@@ -404,7 +387,7 @@ static inline void _load_btree_aux (TREE bt[static 1], const void *key, NODE *no
 	bt->auxNode = node;
 }
 
-static inline i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1])
+INTERNAL i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1])
 {
 	
 	i64 pos = 0;
@@ -421,21 +404,18 @@ static inline i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1]
 	return pos;
 }
 
-static inline void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz)
+INTERNAL void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz)
 {
 	memmove (data + max (pos, 0)  * sz + sz, data + max (pos, 0)  * sz, max ((i64)(n - pos) * sz, 0));
 }
 
-static inline void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz)
+INTERNAL void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz)
 {
 	memmove (data + max (pos, 0) * sz, data + max (pos, 0)  * sz + sz, max ((i64)(n - pos - 1) * sz, 0));
 	memset (data + n * sz - sz, 0, sz);
 }
 
-static inline void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz)
+INTERNAL void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz)
 {
 	memset (data + n * sz, 0, max ((i64)(maxS - n) * sz, 0));
 }
-
-#define BTREE_INTERNAL
-#include "btree.h"

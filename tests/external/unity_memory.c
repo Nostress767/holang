@@ -1,7 +1,11 @@
-/* NOTE: this file was changed on line 206 from:
+/* NOTE: this file was changed on line 210 from:
     if (guard->size >= size) return oldMem;
 to:
     if (guard->size == size) return oldMem;
+AND on line 226 from:
+    memcpy(newMem, oldMem, guard->size);
+to:
+    memcpy(newMem, oldMem, size > guard->size ? guard->size : size);
  * */
 /* ==========================================
 The MIT License (MIT)
@@ -219,7 +223,7 @@ void* unity_realloc(void* oldMem, size_t size)
 #endif
     newMem = unity_malloc(size);
     if (newMem == NULL) return NULL; /* Do not release old memory */
-    memcpy(newMem, oldMem, guard->size);
+    memcpy(newMem, oldMem, size > guard->size ? guard->size : size);
     release_memory(oldMem);
     return newMem;
 }

@@ -3,51 +3,90 @@
 DEBUG_DEFINE_VTABLE(vector)
 #undef DLL_HEADER_SOURCE
 
-#include "log.h"
-
 #include <stdlib.h>
 #include <string.h>
 
 Vector* vector_init(const usize sz)
 {
-	LOGF_TRACE("sz = %zu", sz);
+	return vector_init_with_allocator(sz, nullptr);
+}
+
+Vector* vector_init_with_allocator(const usize sz, const void* (*customAllocator)(const void *el, u8 *vecData))
+{
 	Vector *vec = malloc(sizeof *vec);
 	if(!vec)
 		return nullptr;
-	vec->data = malloc(sizeof(u8[vectorInitialSize]) * sz);
+
+	vec->data = malloc(vectorInitialSize * sz);
 	if(!vec->data){
 		free(vec);
 		return nullptr;
 	}
+
 	vec->sz = sz;
 	vec->vectorSize = vectorInitialSize;
 	vec->n = 0;
+	vec->lastError = vectorErrorSuccess;
+	vec->customAllocator = customAllocator;
+
 	return vec;
 }
 
 void vector_uninit(Vector *vec)
 {
-	LOGF_TRACE("Vector = { .vectorSize = %zu, .sz = %zu, .n = %u, .data = %p }", vec->vectorSize, vec->sz, vec->n, vec->data);
-	free(vec->data);
-	free(vec);
+	if(vec){
+		if(vec->customAllocator){
+			for(u32 i = 0; i < vector_size(vec); ++i){
+				vec->customAllocator(nullptr, &vec->data[i * vector_element_sz(vec)]);
+			}
+		}
+		free(vec->data);
+		free(vec);
+	}
 }
 
 Vector* vector_clone(Vector vec[static 1])
 {
-	Vector *clonedVec = vector_init(vec->sz);
-	if(!clonedVec)
-		return nullptr;
-
-	VectorError e = vector_reserve(clonedVec, vec->n);
-	if(e != vectorErrorSuccess){
-		vector_uninit(clonedVec);
+	Vector *newVec = malloc(sizeof *newVec);
+	if(!newVec){
+		vec->lastError = vectorErrorOutOfMemory;
 		return nullptr;
 	}
 
-	clonedVec->n = vec->n;
-	memcpy(clonedVec->data, vec->data, vec->n * vec->sz);
+	void *tmp = malloc(vector_capacity(vec) * vector_element_sz(vec));
+	if(!tmp){
+		free(newVec);
+		vec->lastError = vectorErrorOutOfMemory;
+		return nullptr;
+	}
 
-	return clonedVec;
+	if(vec->customAllocator){
+		for(u32 i = 0; i < vector_size(vec); ++i){
+			const usize pos = i * vector_element_sz(vec);
+			const void *newData = vec->customAllocator(&vec->data[pos], &((u8*)tmp)[pos]);
+			if(!newData){
+				for(u32 j = 0; j < i; ++j){
+					vec->customAllocator(nullptr, &((u8*)tmp)[j * vector_element_sz(vec)]);
+				}
+				free(newVec);
+				free(tmp);
+				vec->lastError = vectorErrorOutOfMemory;
+				return nullptr;
+			}
+		}
+	}
+	else{
+		memcpy(tmp, vec->data, vector_size(vec) * vector_element_sz(vec));
+	}
+
+	newVec->vectorSize = vector_capacity(vec);
+	newVec->sz = vector_element_sz(vec);
+	newVec->n = vector_size(vec);
+	newVec->data = tmp;
+	newVec->customAllocator = vec->customAllocator;
+
+	vec->lastError = vectorErrorSuccess;
+	return newVec;
 }
 
 void vector_swap(Vector vecA[restrict static 1], Vector vecB[restrict static 1])
@@ -57,200 +96,243 @@ void vector_swap(Vector vecA[restrict static 1], Vector vecB[restrict static 1])
 	*vecB = tmp;
 }
 
-VectorError vector_at(Vector vec[restrict const static 1], const usize index, void *out)
+void* vector_at(Vector vec[restrict const static 1], const usize index)
 {
-	if(!out)
-		return vectorErrorNullOutputData;
-	/* LOGF_TRACE("index = %zu", index); */
-	if(index >= vec->n)
-		return vectorErrorOutOfBounds;
-
-	memcpy(out, &vec->data[index * vec->sz], vec->sz);
-	return vectorErrorSuccess;
-}
-
-VectorError vector_front(Vector vec[restrict const static 1], void *out)
-{
-	if(!out)
-		return vectorErrorNullOutputData;
-	if(vec->n){
-		memcpy(out, &vec->data[0], vec->sz);
-		return vectorErrorSuccess;
+	if(index >= vector_size(vec)){
+		vec->lastError = vectorErrorOutOfBounds;
+		return nullptr;
 	}
-	return vectorErrorEmpty;
+
+	vec->lastError = vectorErrorSuccess;
+	return &vec->data[index * vector_element_sz(vec)];
 }
 
-VectorError vector_back(Vector vec[restrict const static 1], void *out)
+void* vector_front(Vector vec[restrict const static 1])
 {
-	if(!out)
-		return vectorErrorNullOutputData;
-	if(vec->n){
-		memcpy(out, &vec->data[(vec->n - 1) * vec->sz], vec->sz);
-		return vectorErrorSuccess;
+	if(vector_empty(vec)){
+		vec->lastError = vectorErrorEmpty;
+		return nullptr;
 	}
-	return vectorErrorEmpty;
+
+	vec->lastError = vectorErrorSuccess;
+	return &vec->data[0];
 }
 
-const u8* vector_get_data(Vector vec[const static 1])
+void* vector_back(Vector vec[restrict const static 1])
 {
-	return vec->data;
+	if(vector_empty(vec)){
+		vec->lastError = vectorErrorEmpty;
+		return nullptr;
+	}
+
+	vec->lastError = vectorErrorSuccess;
+	return &vec->data[(vector_size(vec) - 1) * vector_element_sz(vec)];
 }
 
-bool vector_empty(Vector vec[const static 1])
+void vector_reserve(Vector vec[static 1], u32 reserveAmount)
 {
-	return vec->n == 0;
-}
-
-u32 vector_size(Vector vec[const static 1])
-{
-	return vec->n;
-}
-
-usize vector_struct_size(Vector vec[const static 1])
-{
-	return vec->sz;
-}
-
-usize vector_capacity(Vector vec[const static 1])
-{
-	return vec->vectorSize;
-}
-
-VectorError vector_reserve(Vector vec[static 1], u32 reserveSize)
-{
-	if(reserveSize > vec->vectorSize){
-		void *tmp = realloc(vec->data, sizeof(u8[reserveSize]) * vec->sz);
-		if(!tmp)
-			return vectorErrorOutOfMemory;
-		vec->vectorSize = reserveSize;
+	if(reserveAmount > vector_capacity(vec)){
+		void *tmp = realloc(vec->data, reserveAmount * vector_element_sz(vec));
+		if(!tmp){
+			vec->lastError = vectorErrorOutOfMemory;
+			return;
+		}
+		vec->vectorSize = reserveAmount;
 		vec->data = tmp;
 	}
 
-	return vectorErrorSuccess;
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_push_back(Vector vec[static 1], const void *data)
+void vector_push_back(Vector vec[static 1], const void *data)
 {
-	if(!data)
-		return vectorErrorNullInputData;
-	/* LOGF_TRACE("Vector (BEFORE) = { .vectorSize = %zu, .sz = %zu, .n = %u, .data = %p }", vec->vectorSize, vec->sz, vec->n, vec->data); */
-	if(vec->n == vec->vectorSize){
-		void *tmp = realloc(vec->data, sizeof(u8[vec->vectorSize * 2]) * vec->sz);
-		if(!tmp)
-			return vectorErrorOutOfMemory;
+	if(!data){
+		vec->lastError = vectorErrorNullInputData;
+		return;
+	}
+
+	if(vector_size(vec) == vector_capacity(vec)){
+		void *tmp = realloc(vec->data, 2 * vector_capacity(vec) * vector_element_sz(vec));
+		if(!tmp){
+			vec->lastError = vectorErrorOutOfMemory;
+			return;
+		}
 		vec->vectorSize *= 2;
 		vec->data = tmp;
 	}
-	memcpy(&vec->data[(vec->n++) * vec->sz], data, vec->sz);
 
-	/* LOGF_TRACE("Vector (AFTER) = { .vectorSize = %zu, .sz = %zu, .n = %u, .data = %p }", vec->vectorSize, vec->sz, vec->n, vec->data); */
-	return vectorErrorSuccess;
+	if(!_vector_set_element(vec, data, vector_size(vec) * vector_element_sz(vec))){
+		vec->lastError = vectorErrorOutOfMemory; /* Only when using customAllocator */
+		return;
+	}
+
+	vec->n++;
+
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_assign_at(Vector vec[restrict static 1], const usize index, const void *data)
+void vector_assign_at(Vector vec[restrict static 1], const usize index, const void *data)
 {
-	if(!data)
-		return vectorErrorNullInputData;
-	if(index >= vec->vectorSize)
-		return vectorErrorOutOfBounds;
+	if(!data){
+		vec->lastError = vectorErrorNullInputData;
+		return;
+	}
 
-	if(index > vec->n){
-		memset(&vec->data[vec->n * vec->sz], 0, (index - vec->n) * vec->sz);
+	if(index >= vector_capacity(vec)){
+		vec->lastError = vectorErrorOutOfBounds;
+		return;
+	}
+
+	const usize pos = index * vector_element_sz(vec);
+
+	if(index > vector_size(vec)){
+		/* NOTE: This can cause problems with customAllocator */
+		/* The user will need to check even successful vector_at for nullptr */
+		memset(&vec->data[vector_size(vec) * vector_element_sz(vec)], 0, (index - vector_size(vec)) * vector_element_sz(vec));
 		vec->n = index + 1;
 	}
-	else if(index == vec->n)
+	else if(index == vector_size(vec))
 		++vec->n;
+	else if(vec->customAllocator){
+		/* We could be replacing another element */
+		/* But we need to make sure first */
+		void *exists;
+		memcpy(&exists, &vec->data[pos], vector_element_sz(vec));
 
-	memcpy(&vec->data[index * vec->sz], data, vec->sz);
+		if(exists){ /* We need to free this before inserting the new values */
+			/* NOTE: if you wanted to replace without destroying and constructing everything again, */
+			/* just use vector_at and modify the pointer in place */
+			vec->customAllocator(nullptr, &vec->data[pos]);
+		}
+	}
 
-	return vectorErrorSuccess;
+	if(!_vector_set_element(vec, data, pos)){
+		vec->lastError = vectorErrorOutOfMemory; /* Only when using customAllocator */
+		return;
+	}
+
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_insert_at(Vector vec[restrict static 1], const usize index, const void *data)
+void vector_insert_at(Vector vec[restrict static 1], const usize index, const void *data)
 {
-	if(!data)
-		return vectorErrorNullInputData;
-	if(index > vec->n)
-		return vectorErrorOutOfBounds;
-	if(vec->n == vec->vectorSize){
-		void *tmp = realloc(vec->data, sizeof(u8[vec->vectorSize * 2]) * vec->sz);
-		if(!tmp)
-			return vectorErrorOutOfMemory;
+	if(!data){
+		vec->lastError = vectorErrorNullInputData;
+		return;
+	}
+	if(index > vector_size(vec)){
+		vec->lastError = vectorErrorOutOfBounds;
+		return;
+	}
+	if(vector_size(vec) == vector_capacity(vec)){
+		void *tmp = realloc(vec->data, 2 * vector_capacity(vec) * vector_element_sz(vec));
+		if(!tmp){
+			vec->lastError = vectorErrorOutOfMemory;
+			return;
+		}
 		vec->vectorSize *= 2;
 		vec->data = tmp;
 	}
 
-	memmove(&vec->data[index * vec->sz + vec->sz], &vec->data[index * vec->sz], (vec->n++) - index);
-	memcpy(&vec->data[index * vec->sz], data, vec->sz);
+	const usize pos = index * vector_element_sz(vec);
 
-	return vectorErrorSuccess;
+	memmove(&vec->data[pos + vector_element_sz(vec)], &vec->data[pos], (vector_size(vec) - index) * vector_element_sz(vec));
+	vec->n++;
+
+	if(!_vector_set_element(vec, data, pos)){
+		/* NOTE: the cost of moving back this data can be avoided if necessary */
+		/* Just save as a temporary value, and then move into position */
+		memmove(&vec->data[pos], &vec->data[pos + vector_element_sz(vec)], (vector_size(vec) - index) * vector_element_sz(vec));
+		vec->n--;
+		vec->lastError = vectorErrorOutOfMemory; /* Only when using customAllocator */
+		return;
+	}
+
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_erase_at(Vector vec[static 1], const usize index)
+void vector_erase_at(Vector vec[static 1], const usize index)
 {
-	if(vec->n == 0)
-		return vectorErrorEmpty;
+	if(vector_size(vec) == 0){
+		vec->lastError = vectorErrorEmpty;
+		return;
+	}
 
-	if(index >= vec->n)
-		return vectorErrorOutOfBounds;
+	if(index >= vector_size(vec)){
+		vec->lastError = vectorErrorOutOfBounds;
+		return;
+	}
 
 	--vec->n; /* Prepare removal */
 
-	if(vec->vectorSize > vectorInitialSize && vec->n < vec->vectorSize / 4){
-		void *tmp = realloc(vec->data, (sizeof(u8[vec->vectorSize]) / 2) * vec->sz);
+	if(vector_capacity(vec) > vectorInitialSize && vector_size(vec) < vector_capacity(vec) / 4){
+		void *tmp = realloc(vec->data, (vector_capacity(vec) / 2) * vector_element_sz(vec));
 		if(!tmp){
 			++vec->n; /* Cancel removal */
-			return vectorErrorOutOfMemory; /* This seems ridiculous, but apparently can happen (https://stackoverflow.com/questions/12125308/can-realloc-fail-return-null-when-trimming#:~:text=Yes%2C%20it%20can.&text=For%20example%2C%20if%20a%20particular,will%20fail%20and%20return%20NULL%20.) */
+			vec->lastError = vectorErrorOutOfMemory; /* This seems ridiculous, but apparently can happen (https://stackoverflow.com/questions/12125308/can-realloc-fail-return-null-when-trimming#:~:text=Yes%2C%20it%20can.&text=For%20example%2C%20if%20a%20particular,will%20fail%20and%20return%20NULL%20.) */
+			return;
 		}
 		vec->vectorSize /= 2;
 		vec->data = tmp;
 	}
 
-	memmove(&vec->data[index * vec->sz], &vec->data[index * vec->sz + vec->sz], (vec->n - index) * vec->sz); /* Remove */
+	const usize pos = index * vector_element_sz(vec);
 
-	return vectorErrorSuccess;
+	if(vec->customAllocator)
+		vec->customAllocator(nullptr, &vec->data[pos]);
+
+	memmove(&vec->data[pos], &vec->data[pos + vector_element_sz(vec)], (vector_size(vec) - index) * vector_element_sz(vec)); /* Remove */
+
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_pop_back(Vector vec[static 1])
+void vector_pop_back(Vector vec[static 1])
 {
-	if(vec->n == 0)
-		return vectorErrorEmpty;
+	if(vector_empty(vec)){
+		vec->lastError = vectorErrorEmpty;
+		return;
+	}
 
 	--vec->n;
 
-	if(vec->n > vectorInitialSize && vec->n < vec->vectorSize / 4){
-		void *tmp = realloc(vec->data, (sizeof(u8[vec->vectorSize]) / 2) * vec->sz);
+	if(vec->customAllocator)
+		vec->customAllocator(nullptr, &vec->data[vector_size(vec) * vector_element_sz(vec)]);
+
+	if(vector_capacity(vec) > vectorInitialSize && vector_size(vec) < vector_capacity(vec) / 4){
+		void *tmp = realloc(vec->data, (vector_capacity(vec) / 2) * vector_element_sz(vec));
 		if(!tmp){
 			++vec->n;
-			return vectorErrorOutOfMemory; /* Same reason as vector_erase_at */
+			vec->lastError = vectorErrorOutOfMemory; /* Same reason as vector_erase_at */
+			return;
 		}
 		vec->vectorSize /= 2;
 		vec->data = tmp;
 	}
 
-	return vectorErrorSuccess;
+	vec->lastError = vectorErrorSuccess;
 }
 
-VectorError vector_clear(Vector vec[static 1])
+void vector_clear(Vector vec[static 1])
 {
-	void *tmp = malloc(sizeof(u8[vectorInitialSize]) * vec->sz);
-	if(!tmp)
-		return vectorErrorOutOfMemory;
+	void *tmp = malloc(vectorInitialSize * vector_element_sz(vec));
+	if(!tmp){
+		vec->lastError = vectorErrorOutOfMemory;
+		return;
+	}
+
+	if(vec->customAllocator)
+		for(u32 i = 0; i < vector_size(vec); ++i)
+			vec->customAllocator(nullptr, &vec->data[i * vector_element_sz(vec)]);
+
 	free(vec->data);
 	vec->data = tmp;
 	vec->n = 0;
 	vec->vectorSize = vectorInitialSize;
-	return vectorErrorSuccess;
-}
-
-void vector_zero_all(Vector vec[static 1])
-{
-	vec->n = 0;
-	memset(vec->data, 0, sizeof(u8[vec->vectorSize]) * vec->sz);
+	vec->lastError = vectorErrorSuccess;
 }
 
 void vector_sort(Vector vec[static 1], int (*compar)(const void*, const void*))
 {
-	qsort(vec->data, vec->n, vec->sz, compar);
+	qsort(vec->data, vector_size(vec), vector_element_sz(vec), compar);
 }
 

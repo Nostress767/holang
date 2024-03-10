@@ -22,6 +22,5 @@ typedef size_t   usize;
 typedef float  f32;
 typedef double f64;
 typedef u8 bool8;
-typedef void* Handle;
-#define INTERNAL
+#define INTERNAL static inline
 

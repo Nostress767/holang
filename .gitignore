@@ -1,6 +1,14 @@
 /w64devkit
 /target
 
+*.html
+*.css
+
+# gcov files
+*.gcov
+*.gcda
+*.gcno
+
 # Prerequisites
 *.d
 
