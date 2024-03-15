@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "hash_table.h"
 
@@ -46,5 +47,45 @@ INTERNAL usize _usize_bit_ceil(usize value)
 	while(i < value)
 		i <<= 1;
 	return i;
+}
+
+INTERNAL void* _search_bucket_entry(HashTable ht[restrict const static 1], const void *key, Bucket **outBucket)
+{
+	u32 hash = ht->customHash ? ht->customHash(key) : hash_table_half_siphash(ht->keySz, (u8 *restrict const)key, (u8*)&hashTableDefaultHashKey);
+
+	Bucket *foundBucket = &ht->buckets[hash & (ht->bucketsSize - 1)]; /* bucketsSize needs to be a power of 2 for this to be valid */
+
+	if(outBucket)
+		*outBucket = foundBucket;
+
+	for(u32 i = 0; i < foundBucket->entriesAmount; ++i){
+		u8 *keyValue = &foundBucket->entries[i * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
+
+		if((ht->keyComp && ht->keyComp(keyValue, key) == 0) || (memcmp(keyValue, key, hash_table_key_sz(ht)) == 0))
+			return keyValue + hash_table_key_sz(ht);
+	}
+
+	return nullptr;
+}
+
+INTERNAL void* _alloc_bucket_entries_if_not_exists(Bucket bkt[static 1], const usize entrySz)
+{
+	if(!bkt->entries){
+		bkt->entriesSize = hashTableBucketEntryInitialSize;
+		bkt->entries = malloc(entrySz * bkt->entriesSize);
+	}
+	return bkt->entries;
+}
+
+INTERNAL void* _realloc_bucket_entries_if_full(Bucket bkt[static 1], const usize entrySz)
+{
+	if(bkt->entriesAmount == bkt->entriesSize){
+		void *tmp = realloc(bkt->entries, entrySz * bkt->entriesSize * 2);
+		if(!tmp)
+			return nullptr;
+		bkt->entriesSize *= 2;
+		bkt->entries = tmp;
+	}
+	return bkt->entries;
 }
 

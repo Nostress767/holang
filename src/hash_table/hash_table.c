@@ -4,7 +4,6 @@ DEBUG_DEFINE_VTABLE(hash_table)
 #undef DLL_HEADER_SOURCE
 
 #include <stdlib.h>
-#include <string.h>
 #include <assert.h>
 
 /* default: SipHash-2-4 */
@@ -115,7 +114,7 @@ HashTable* hash_table_init_with_hash_and_keycomp(const usize keySz, const usize 
 	return hash_table_init_with_hash_keycomp_and_allocator(keySz, valueSz, customHash, keyComp, nullptr);
 }
 
-HashTable* hash_table_init_with_hash_keycomp_and_allocator(const usize keySz, const usize valueSz, u32 (*customHash)(const void *key), int (*keyComp)(const void *a, const void *b), const void* (*customAllocator)(const void *key, const void *value, u8 *bucketData))
+HashTable* hash_table_init_with_hash_keycomp_and_allocator(const usize keySz, const usize valueSz, u32 (*customHash)(const void *key), int (*keyComp)(const void *a, const void *b), const void* (*customAllocator)(const void *key, const void *value, const usize entrySz, u8 *bucketData))
 {
 	HashTable *ht = malloc(sizeof *ht);
 	if(!ht){
@@ -148,8 +147,9 @@ void hash_table_uninit(HashTable *ht)
 	for(usize i = 0; i < ht->bucketsSize; ++i){
 		if(ht->customAllocator){
 			for(u32 j = 0; j < ht->buckets[i].entriesAmount; ++j){ /* If a bucket exists, at least one entry does as well */
-				u8 *keyValuePos = &ht->buckets[i].entries[j * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-				ht->customAllocator(nullptr, nullptr, keyValuePos);
+				const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
+				u8 *keyValuePos = &ht->buckets[i].entries[j * entrySz];
+				ht->customAllocator(nullptr, nullptr, entrySz, keyValuePos);
 			}
 		}
 		free(ht->buckets[i].entries);
@@ -160,17 +160,7 @@ void hash_table_uninit(HashTable *ht)
 
 void* hash_table_at(HashTable ht[restrict const static 1], const void *key)
 {
-	u32 hash = ht->customHash ? ht->customHash(key) : hash_table_half_siphash(ht->keySz, (u8 *restrict const)key, (u8*)&hashTableDefaultHashKey);
-
-	Bucket foundBucket = ht->buckets[hash & (ht->bucketsSize - 1)]; /* bucketsSize needs to be a power of 2 for this to be valid */
-	for(u32 i = 0; i < foundBucket.entriesAmount; ++i){
-		u8 *keyValue = &foundBucket.entries[i * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-
-		if((ht->keyComp && ht->keyComp(keyValue, key) == 0) || (memcmp(keyValue, key, hash_table_key_sz(ht)) == 0))
-			return keyValue + hash_table_key_sz(ht);
-	}
-
-	return nullptr;
+	return _search_bucket_entry(ht, key, nullptr);
 }
 
 void hash_table_reserve(HashTable ht[static 1], usize reserveSize)
@@ -202,27 +192,19 @@ void hash_table_reserve(HashTable ht[static 1], usize reserveSize)
 			u32 pos = hash & (reserveSize - 1); /* This is the important part. The entry is kept as-is */
 
 			const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
-			if(!newBuckets[pos].entries){
-				newBuckets[pos].entriesSize = hashTableBucketEntryInitialSize;
-				newBuckets[pos].entries = malloc(entrySz * newBuckets[pos].entriesSize);
-				if(!newBuckets[pos].entries)
-					goto no_more_memory;
-			}
 
-			if(newBuckets[pos].entriesAmount == newBuckets[pos].entriesSize){
-				void *tmp = realloc(newBuckets[pos].entries, entrySz * newBuckets[pos].entriesSize * 2);
-				if(!tmp)
-					goto no_more_memory;
-				newBuckets[pos].entriesSize *= 2;
-				newBuckets[pos].entries = tmp;
-			}
+			if(!_alloc_bucket_entries_if_not_exists(&newBuckets[pos], entrySz))
+				goto no_more_memory;
+
+			if(!_realloc_bucket_entries_if_full(&newBuckets[pos], entrySz))
+				goto no_more_memory;
 
 			memcpy(&newBuckets[pos].entries[newBuckets[pos].entriesAmount * entrySz], keyValue, entrySz);
 			++newBuckets[pos].entriesAmount;
 			continue;
 
 			no_more_memory:
-			for(u32 k = 0; k < ht->bucketsSize; ++k)
+			for(u32 k = 0; k < reserveSize; ++k)
 				if(newBuckets[k].entries)
 					free(newBuckets[k].entries);
 			free(newBuckets);
@@ -231,6 +213,8 @@ void hash_table_reserve(HashTable ht[static 1], usize reserveSize)
 		}
 	}
 
+	for(u32 i = 0; i < ht->bucketsSize; ++i)
+		free(ht->buckets[i].entries);
 	free(ht->buckets);
 	ht->buckets = newBuckets;
 	ht->bucketsSize = reserveSize;
@@ -249,54 +233,43 @@ void hash_table_insert(HashTable ht[restrict static 1], const void *key, const v
 		return;
 	}
 
-	u32 hash = ht->customHash ? ht->customHash(key) : hash_table_half_siphash(ht->keySz, (u8 *restrict const)key, (u8*)&hashTableDefaultHashKey);
-	u32 pos = hash & (ht->bucketsSize - 1);
-
-	Bucket foundBucket = ht->buckets[pos];
-	for(u32 i = 0; i < foundBucket.entriesAmount; ++i){
-		u8 *keyValue = &foundBucket.entries[i * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-
-		if((ht->keyComp && ht->keyComp(keyValue, key) == 0) || (memcmp(keyValue, key, hash_table_key_sz(ht)) == 0)){
-			ht->lastError = hashTableErrorKeyAlreadyExists;
+	if(hash_table_load_factor(ht) > ht->maxLoadFactor){
+		hash_table_reserve(ht, 2 * ht->bucketsSize);
+		if(hashTableErrorOutOfMemory == hash_table_get_last_error(ht))
 			return;
-		}
+	}
+
+	Bucket *foundBucket = nullptr;
+	if(_search_bucket_entry(ht, key, &foundBucket)){
+		ht->lastError = hashTableErrorKeyAlreadyExists;
+		return;
 	}
 
 	const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
-	/* TODO: these common operations (new if empty/resize vector) should be internal functions */
-	if(!ht->buckets[pos].entries){
-		ht->buckets[pos].entriesSize = hashTableBucketEntryInitialSize;
-		ht->buckets[pos].entries = malloc(entrySz * ht->buckets[pos].entriesSize);
-		if(!ht->buckets[pos].entries){
-			ht->lastError = hashTableErrorOutOfMemory;
-			return;
-		}
+
+	if(!_alloc_bucket_entries_if_not_exists(foundBucket, entrySz)){
+		ht->lastError = hashTableErrorOutOfMemory;
+		return;
 	}
 
-	if(ht->buckets[pos].entriesAmount == ht->buckets[pos].entriesSize){
-		void *tmp = realloc(ht->buckets[pos].entries, entrySz * ht->buckets[pos].entriesSize * 2);
-		if(!tmp){
-			ht->lastError = hashTableErrorOutOfMemory;
-			return;
-		}
-		ht->buckets[pos].entriesSize *= 2;
-		ht->buckets[pos].entries = tmp;
+	if(!_realloc_bucket_entries_if_full(foundBucket, entrySz)){
+		ht->lastError = hashTableErrorOutOfMemory;
+		return;
 	}
 
 	if(ht->customAllocator){
-		const void *keyValue = ht->customAllocator(key, value, &ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * entrySz]);
+		const void *keyValue = ht->customAllocator(key, value, entrySz, &foundBucket->entries[foundBucket->entriesAmount * entrySz]);
 		if(!keyValue){
 			ht->lastError = hashTableErrorOutOfMemory;
 			return;
 		}
-		memcpy(&ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * entrySz], keyValue, entrySz);
 	}
 	else{
-		memcpy(&ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * entrySz], key, hash_table_key_sz(ht));
-		memcpy(&ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * entrySz + hash_table_key_sz(ht)], value, hash_table_value_sz(ht));
+		memcpy(&foundBucket->entries[foundBucket->entriesAmount * entrySz], key, hash_table_key_sz(ht));
+		memcpy(&foundBucket->entries[foundBucket->entriesAmount * entrySz + hash_table_key_sz(ht)], value, hash_table_value_sz(ht));
 	}
 
-	++ht->buckets[pos].entriesAmount;
+	++foundBucket->entriesAmount;
 	++ht->n;
 	ht->lastError = hashTableErrorSuccess;
 }
@@ -308,35 +281,30 @@ void hash_table_erase(HashTable ht[static 1], const void *key)
 		return;
 	}
 
-	u32 hash = ht->customHash ? ht->customHash(key) : hash_table_half_siphash(ht->keySz, (u8 *restrict const)key, (u8*)&hashTableDefaultHashKey);
-	u32 pos = hash & (ht->bucketsSize - 1);
+	Bucket *foundBucket = nullptr;
+	typeof(foundBucket->entries) value = _search_bucket_entry(ht, key, &foundBucket);
+	if(value){
+		--foundBucket->entriesAmount;
+		--ht->n;
 
-	Bucket foundBucket = ht->buckets[pos];
-	for(u32 i = 0; i < foundBucket.entriesAmount; ++i){
-		u8 *keyValue = &foundBucket.entries[i * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-
-		if((ht->keyComp && ht->keyComp(keyValue, key) == 0) || (memcmp(keyValue, key, hash_table_key_sz(ht)) == 0)){
-			--ht->buckets[pos].entriesAmount;
-			--ht->n;
-
-			if(ht->customAllocator){
-				u8 *keyValuePos = &ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-				ht->customAllocator(nullptr, nullptr, keyValuePos);
-			}
-
-			if(i < ht->buckets[pos].entriesAmount){ /* if not the last element */
-				const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
-				memcpy(&ht->buckets[pos].entries[i * entrySz], &ht->buckets[pos].entries[ht->buckets[pos].entriesAmount * entrySz], entrySz); /* swap with the last */
-			}
-
-			if(ht->buckets[pos].entriesAmount == 0){
-				free(ht->buckets[pos].entries);
-				ht->buckets[pos].entries = nullptr;
-			}
-
-			ht->lastError = hashTableErrorSuccess;
-			return;
+		if(ht->customAllocator){
+			const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
+			u8 *keyValuePos = &foundBucket->entries[foundBucket->entriesAmount * entrySz];
+			ht->customAllocator(nullptr, nullptr, entrySz, keyValuePos);
 		}
+
+		const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
+		const usize entryPlace = (abs(value - foundBucket->entries) - hash_table_key_sz(ht)) / entrySz; /* hack to reuse function */
+		if(entryPlace < foundBucket->entriesAmount) /* if not the last element */
+			memcpy(&foundBucket->entries[entryPlace * entrySz], &foundBucket->entries[foundBucket->entriesAmount * entrySz], entrySz); /* swap with the last */
+
+		if(foundBucket->entriesAmount == 0){
+			free(foundBucket->entries);
+			foundBucket->entries = nullptr;
+		}
+
+		ht->lastError = hashTableErrorSuccess;
+		return;
 	}
 
 	/* TODO: should resize down? */
@@ -352,8 +320,9 @@ void hash_table_clear(HashTable ht[static 1])
 	for(usize i = 0; i < ht->bucketsSize; ++i){
 		if(ht->customAllocator){
 			for(u32 j = 0; j < ht->buckets[i].entriesAmount; ++j){ /* If a bucket exists, at least one entry does as well */
-				u8 *keyValuePos = &ht->buckets[i].entries[j * (hash_table_key_sz(ht) + hash_table_value_sz(ht))];
-				ht->customAllocator(nullptr, nullptr, keyValuePos);
+				const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
+				u8 *keyValuePos = &ht->buckets[i].entries[j * entrySz];
+				ht->customAllocator(nullptr, nullptr, entrySz, keyValuePos);
 			}
 		}
 		free(ht->buckets[i].entries);

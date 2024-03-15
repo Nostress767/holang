@@ -5,7 +5,7 @@
 constexpr u64 hashTableDefaultHashKey = 0x0123456789ABCDEF;
 constexpr f32 hashTableDefaultMaxLoadFactor = 1.f;
 constexpr u32 hashTableInitialSize = 1 << 7;
-constexpr u32 hashTableBucketEntryInitialSize = 1 << 5;
+constexpr u32 hashTableBucketEntryInitialSize = 1 << 3;
 
 typedef struct Bucket
 {
@@ -38,7 +38,7 @@ typedef struct HashTable
 
 	/* Function used to manage element memory in the buckets */
 	/* The value is placed right after the key inside bucketData */
-	const void* (*customAllocator)(const void *key, const void *value, u8 *bucketData);
+	const void* (*customAllocator)(const void *key, const void *value, const usize entrySz, u8 *bucketData);
 
 	enum HashTableError lastError; 	   /* Last occured error 			*/
 } HashTable;
@@ -49,7 +49,7 @@ DLL_X(hash_table_half_siphash, u32, const usize inLen, u8 in[restrict const stat
 DLL_X(hash_table_init, HashTable* , const usize keySz, const usize valueSz) \
 DLL_X(hash_table_init_with_hash, HashTable* , const usize keySz, const usize valueSz, u32 (*customHash)(const void *key)) \
 DLL_X(hash_table_init_with_hash_and_keycomp, HashTable* , const usize keySz, const usize valueSz, u32 (*customHash)(const void *key), int (*keyComp)(const void *a, const void *b)) \
-DLL_X(hash_table_init_with_hash_keycomp_and_allocator, HashTable* , const usize keySz, const usize valueSz, u32 (*customHash)(const void *key), int (*keyComp)(const void *a, const void *b), const void* (*customAllocator)(const void *key, const void *value, u8 *bucketData)) \
+DLL_X(hash_table_init_with_hash_keycomp_and_allocator, HashTable* , const usize keySz, const usize valueSz, u32 (*customHash)(const void *key), int (*keyComp)(const void *a, const void *b), const void* (*customAllocator)(const void *key, const void *value, const usize entrySz, u8 *bucketData)) \
 DLL_X(hash_table_uninit, void, HashTable *ht) \
 DLL_X(hash_table_at, void*, HashTable ht[restrict const static 1], const void *key) \
 DLL_X(hash_table_reserve, void, HashTable ht[static 1], usize reserveSize) \

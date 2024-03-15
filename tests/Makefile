@@ -55,6 +55,7 @@ MAKEFILES   := $(addsuffix .d,$(basename $(SRCOBJS)))
 .PHONY: all
 # Default target
 all: $(EXE)
+	-@rm -f $(shell find . -type f -name "*.gcda")
 	-@./$(EXE) -v
 
 # Report code coverage
