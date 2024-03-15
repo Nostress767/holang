@@ -63,7 +63,7 @@ all: $(EXE)
 report:
 	gcov -a -b -c -f -p -H -r $(patsubst %.o,%.c,$(SRCOBJS))
 	@mkdir -p gcovr-report
-	gcovr --root .. --filter ../src/ --html --html-details --html-theme github.dark-green --html-syntax-highlighting --output gcovr-report/coverage.html
+	gcovr --root .. --filter ../include/ --filter ../src/ --html --html-details --html-theme github.dark-green --html-syntax-highlighting --output gcovr-report/coverage.html
 
 # Compile sources
 $(call get_suffix,.o  ,$(SRC)) : $(OBJDIR)/%.o : ../%.c
