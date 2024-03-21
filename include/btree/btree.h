@@ -13,6 +13,13 @@ typedef struct NODE
 	u8 *data;		     /* Raw data of elements 								       */
 } NODE;
 
+enum BTreeError : u8
+{
+	bTreeErrorOutOfMemory,
+	bTreeErrorSuccess,
+	/* TODO */
+};
+
 typedef struct TREE
 {
 	NODE *root;				     /* Pointer to the root 			       */
@@ -22,27 +29,48 @@ typedef struct TREE
 	int (*compar)(const void *a, const void *b); /* Comparation function used to sort the elements */
 	void *auxData;				     /* Used for internal operations 		       */
 	NODE *auxNode;				     /* Used for internal operations 		       */
+	
+	enum BTreeError lastError;
+	
+	const void* (*customAllocator)(const void*, u8*);
 } TREE;
 
-enum BTreeError : u8
+enum BTreeIteratorError : u8
 {
-	bTreeErrorOutOfMemory,
-	bTreeErrorSuccess,
+	bTreeIteratorErrorOutOfMemory,
+	bTreeIteratorErrorSuccess,
+	bTreeIteratorEmpty,
 	/* TODO */
 };
+
+typedef struct
+{
+	TREE *bt;
+	NODE *node;
+	usize pos;
+	void *data;
+	enum BTreeIteratorError lastError;
+} BTreeIterator;
+
+
 
 #undef DLL_FUNCTIONS
 #define DLL_FUNCTIONS \
 DLL_X(btree_init, TREE*, usize sz, u32 order, int (*compar)(const void *, const void *))\
+DLL_X(btree_init_with_allocator, TREE*, usize sz, u32 order, int (*compar)(const void *, const void *), const void* (*customAllocator)(const void*, u8*))\
 DLL_X(btree_uninit, void, TREE *bt)\
 \
 DLL_X(btree_insert, void, TREE bt[restrict static 1], const void *key)\
 \
 DLL_X(btree_erase, void, TREE bt[restrict static 1], const void *key)\
 \
-DLL_X(btree_print, void, TREE bt[const static 1])\
+DLL_X(btree_search, void*, TREE bt[restrict const static 1], const void *key)\
 \
-DLL_X(btree_search, void*, TREE bt[restrict const static 1], const void *key)
+DLL_X(btree_iterator_begin, BTreeIterator*, TREE bt[restrict const static 1])\
+DLL_X(btree_iterator_uninit, void, BTreeIterator it[restrict const static 1])\
+DLL_X(btree_iterator_end, bool, BTreeIterator it[restrict const static 1])\
+DLL_X(btree_iterator_next, void, BTreeIterator it[restrict const static 1])\
+DLL_X(btree_iterator_get_data, void*, BTreeIterator it[restrict const static 1])
 
 #include "dll/generator.h"
 DEBUG_DECLARE_VTABLE(btree)

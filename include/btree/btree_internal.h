@@ -26,21 +26,73 @@ INTERNAL i64 max(i64 a, i64 b)
 	return a > b ? a : b;
 }
 
+INTERNAL bool _btree_root(TREE bt[static 1])
+{
+	return bt->root != nullptr;
+}
+
 INTERNAL i64 _btree_bsearch (const void *key, NODE *node, TREE bt[static 1]);
-INTERNAL bool _btree_insert (const void *key, NODE *node, TREE bt[static 1]);
+INTERNAL bool _btree_insert (const void *key, usize n, TREE bt[static 1]);
 INTERNAL NODE *_malloc_node (TREE bt[static 1], bool index);
 INTERNAL void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node);
-INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos);
-INTERNAL void _btree_uinit (NODE *node);
-INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1]);
-INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos);
+INTERNAL void _btree_split (NODE *node, TREE bt[static 1], i64 pos);
+INTERNAL void _btree_uinit (TREE bt[static 1], NODE *node);
+INTERNAL bool _btree_erase (const void *key, usize n, TREE bt[static 1]);
+INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], i64 pos);
 INTERNAL bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos);
-INTERNAL void _print_node (NODE *node);
 INTERNAL void *_btree_search (const void *key, NODE *node, TREE bt[static 1]);
-INTERNAL void _btree_print (NODE *node, TREE bt[static 1]);
 INTERNAL void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz);
 INTERNAL void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz);
 INTERNAL void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz);
+INTERNAL NODE *_clone_node_index (NODE *node, TREE bt[static 1]);
+INTERNAL void _btree_iterator_load_data (BTreeIterator it[restrict const static 1]);
+
+INTERNAL const void* _btree_set_element (const void *key, NODE *node, TREE bt[static 1], i64 pos);
+INTERNAL NODE *_btree_read_node (TREE bt[static 1], usize n);
+INTERNAL void _btree_write_node (TREE bt[static 1], NODE *node);
+
+
+INTERNAL const void* _btree_set_element (const void *key, NODE *node, TREE bt[static 1], i64 pos)
+{
+	return bt->customAllocator && !node->index ?
+	bt->customAllocator(key, node->data + pos * bt->sz)
+	: key ? memcpy ((node->data + pos * bt->sz), key, bt->sz) : memset ((node->data + pos * bt->sz), 0, bt->sz);
+}
+
+INTERNAL NODE *_btree_read_node (TREE bt[static 1], usize n)
+{
+	return (NODE*)n;
+}
+
+INTERNAL void _btree_write_node (TREE bt[static 1], NODE *node)
+{
+	return;
+}
+
+
+INTERNAL void _btree_iterator_load_data (BTreeIterator it[restrict const static 1])
+{
+	memcpy (it->data, it->node->data + it->pos * it->bt->sz, it->bt->sz);
+}
+
+INTERNAL NODE *_clone_node_index (NODE *node, TREE bt[static 1]) {
+	
+	if (!node)
+		return nullptr;
+	
+	NODE *new = _malloc_node (bt, node->index);
+	
+	if (!new)
+		return nullptr;
+	
+	memcpy (new->data, node->data, btree_max(bt) * bt->sz);
+	new->n = node->n;
+	
+	new->next = _clone_node_index (node->next, bt);
+	
+	return new;
+}
+
 
 INTERNAL void *_btree_search (const void *key, NODE *node, TREE bt[static 1])
 {
@@ -54,40 +106,7 @@ INTERNAL void *_btree_search (const void *key, NODE *node, TREE bt[static 1])
 	return NULL;
 }
 
-INTERNAL bool _btree_insert (const void *key, NODE *node, TREE bt[static 1])
-{
-	i64 pos = _btree_bsearch (key, node, bt);
-
-	if (node->index) {
-		if (!_btree_insert (key, node->child[pos], bt)) {
-			if (node->n == btree_max(bt)) {
-				_btree_split (node, bt, pos);
-				return false;
-			} else {
-				_btree_move_foward (node->data, pos, node->n, bt->sz);
-				_btree_move_foward ((u8*)node->child, pos+1, node->n+1, sizeof (NODE*));
-				
-				memcpy ((node->data + pos * bt->sz), bt->auxData, bt->sz);
-				node->child[pos+1] = bt->auxNode;
-				node->n++;
-			}
-		}
-	} else {
-		if (node->n == btree_max(bt)) {
-			_load_btree_aux (bt, key, NULL);
-			_btree_split (node, bt, pos);
-			return false;
-		} else {
-			_btree_move_foward (node->data, pos, node->n, bt->sz);
-			memcpy ((node->data + pos * bt->sz), key, bt->sz);
-			node->n++;
-		}
-	}
-	
-	return true;
-}
-
-INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
+INTERNAL void _btree_split (NODE *node, TREE bt[static 1], i64 pos)
 {
 	NODE *new = _malloc_node (bt, node->index);
 	bt->n++;
@@ -99,7 +118,7 @@ INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
 		memcpy (new->data, node->data + (node->n-1) * bt->sz, (bt->order-node->n) * bt->sz);
 
 		_btree_move_foward (node->data, pos, node->n, bt->sz);
-		memcpy (node->data + pos * bt->sz, bt->auxData, bt->sz);
+		_btree_set_element (bt->auxData, node, bt, pos);
 		
 		if (node->index) {
 			memcpy (new->child, node->child + node->n, (bt->order-node->n) * sizeof (NODE*));
@@ -114,7 +133,7 @@ INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
 		pos -= node->n;
 		
 		_btree_move_foward (new->data, pos, new->n, bt->sz);
-		memcpy (new->data + pos * bt->sz, bt->auxData, bt->sz);
+		_btree_set_element (bt->auxData, new, bt, pos);
 
 		if (node->index) {
 			memcpy (new->child, node->child + (new->n + !(bt->order%2)), (bt->order - new->n - !(bt->order%2)) * sizeof (NODE*));
@@ -139,23 +158,15 @@ INTERNAL void _btree_split (NODE *node, TREE bt[static 1], u32 pos)
 	}
 }
 
-INTERNAL void _btree_print (NODE *node, TREE bt[static 1])
+INTERNAL bool _btree_erase (const void *key, usize n, TREE bt[static 1])
 {
-	_print_node (node);
-	if (node->index)
-		for (u32 i = 0; i <= node->n; i++)
-			_btree_print (node->child[i], bt);
-}
-
-INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
-{
-	
+	NODE *node = _btree_read_node (bt, n);
 	i64 pos = _btree_bsearch (key, node, bt);
 
 	if (node->index) {
 		NODE *child = node->child[pos];
 		
-		if (!_btree_erase (key, child, bt)) {
+		if (!_btree_erase (key, (usize)child, bt)) {
 			
 			if (child->index && bt->compar (key, node->data + max ((pos - 1), 0) * bt->sz) == 0)
 				memcpy (node->data + max ((pos - 1), 0)  * bt->sz, bt->auxData, bt->sz);
@@ -167,8 +178,8 @@ INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
 				
 				if (!_btree_merge (node, bt, pos)) {
 					
-					if (bt->compar (key, node->data + max ((pos - 1), 0) * bt->sz) == 0)
-						memcpy (node->data + max ((pos - 1), 0)  * bt->sz, bt->auxData, bt->sz);
+					//if (bt->compar (key, node->data + max ((pos - 1), 0) * bt->sz) == 0)
+					//	memcpy (node->data + max ((pos - 1), 0)  * bt->sz, bt->auxData, bt->sz);
 					
 					if (bt->root == node) {
 						
@@ -204,6 +215,8 @@ INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
 		if (bt->compar (key, node->data + pos * bt->sz) != 0)
 			return true;
 		
+		_btree_set_element (nullptr, node, bt, pos);
+		
 		_btree_move_backwards (node->data, pos, node->n, bt->sz);
 		node->n--;
 		
@@ -222,14 +235,14 @@ INTERNAL bool _btree_erase (const void *key, NODE *node, TREE bt[static 1])
 	return false;
 }
 
-INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
+INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], i64 pos)
 {
 	
 	if (pos < node->n) {
-		NODE *right = node->child[pos+1];
+		NODE *right = _btree_read_node (bt, (usize)node->child[pos+1]);
 		
 		if (right->n > btree_min(bt)) {
-			NODE *target = node->child[pos];
+			NODE *target = _btree_read_node (bt, (usize)node->child[pos]);
 			
 			memcpy (target->data + target->n * bt->sz, node->data + pos * bt->sz, bt->sz);
 			target->n++;
@@ -248,16 +261,18 @@ INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
 			}
 			
 			right->n--;
-
+			
+			_btree_write_node (bt, target);
+			_btree_write_node (bt, right);
 			return true;
 		}
 	}
 	
 	if (pos > 0) {
-		NODE *left = node->child[pos-1];
+		NODE *left = _btree_read_node (bt, (usize)node->child[pos-1]);
 		
 		if (left->n > btree_min(bt)) {
-			NODE *target = node->child[pos];
+			NODE *target = _btree_read_node (bt, (usize)node->child[pos]);
 
 			_btree_move_foward (target->data, 0, target->n, bt->sz);
 			target->n++;
@@ -280,6 +295,8 @@ INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
 			
 			_btree_clear_space (left->data, btree_max(bt), left->n, bt->sz);
 			
+			_btree_write_node (bt, target);
+			_btree_write_node (bt, left);
 			return true;
 		}
 	}
@@ -289,8 +306,8 @@ INTERNAL bool _btree_borrow (NODE *node, TREE bt[static 1], u32 pos)
 
 INTERNAL bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos)
 {
-	NODE *target = node->child[pos-1 + !pos];
-	NODE *right = node->child[pos + !pos];
+	NODE *target = _btree_read_node (bt, (usize)node->child[pos-1 + !pos]);
+	NODE *right = _btree_read_node (bt, (usize)node->child[pos + !pos]);
 
 	memcpy (target->data + (target->n + target->index) * bt->sz, right->data, right->n * bt->sz);
 
@@ -326,28 +343,17 @@ INTERNAL bool _btree_merge (NODE *node, TREE bt[static 1], i64 pos)
 	return true;
 }
 
-INTERNAL void _print_node (NODE *node)
+INTERNAL void _btree_uinit (TREE bt[static 1], NODE *node)
 {
-	LOGF_TRACE("qttKeys: %d\n", node->n);
-	for (int i = 0; i < node->n; i++)
-		LOGF_TRACE("%d ", *(u32*)(node->data+i*16));
-	LOG_TRACE("\n");
-	if (node->index) {
-		for (int i = 0; i <= node->n; i++)
-			LOGF_TRACE("%p ", (void*)node->child[i]);
-		LOG_TRACE("\n");
-	}
-	LOG_TRACE("\n");
-}
-
-INTERNAL void _btree_uinit (NODE *node)
-{
-	//_print_node (node);
 	if (node->index) {
 		for (u32 i = 0; i <= node->n; i++)
-			_btree_uinit (node->child[i]);
+			_btree_uinit (bt, node->child[i]);
 		free (node->child);
+	} else {
+		for (u32 i = 0; i < node->n; i++)
+			_btree_set_element (nullptr, node, bt, i);
 	}
+
 	
 	free (node->data);
 	free (node);
@@ -358,8 +364,22 @@ INTERNAL NODE *_malloc_node (TREE bt[static 1], bool index)
 {
 	
 	NODE *out = malloc(sizeof(NODE));
+	
+	if (!out) {
+		bt->lastError = bTreeErrorOutOfMemory;
+		return nullptr;
+	}
+	
+	
 	out->n = 0;
 	out->data = malloc(btree_max(bt) * bt->sz);
+	
+	if (!out->data) {
+		free (out);
+		bt->lastError = bTreeErrorOutOfMemory;
+		return nullptr;
+	}
+	
 	_btree_clear_space (out->data, btree_max(bt), 0, bt->sz);
 	
 	if (index) {
@@ -371,17 +391,12 @@ INTERNAL NODE *_malloc_node (TREE bt[static 1], bool index)
 
 	out->index = index;
 	
+	bt->lastError = bTreeErrorSuccess;
 	return out;
 }
 
 INTERNAL void _load_btree_aux (TREE bt[static 1], const void *key, NODE *node)
 {
-	if (!key && !node) {
-		memset (bt->auxData, 0, bt->sz);
-		bt->auxNode = NULL;
-		return;
-	}
-
 	memset (bt->auxData, 0, bt->sz);
 	memcpy (bt->auxData, key, bt->sz);
 	bt->auxNode = node;
@@ -418,4 +433,39 @@ INTERNAL void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz)
 INTERNAL void _btree_clear_space (u8 *data, u32 maxS, u32 n, usize sz)
 {
 	memset (data + n * sz, 0, max ((i64)(maxS - n) * sz, 0));
+}
+
+
+INTERNAL bool _btree_insert (const void *key, uintptr_t n, TREE bt[static 1])
+{
+	NODE *node = _btree_read_node (bt, n);
+	i64 pos = _btree_bsearch (key, node, bt);
+
+	if (node->index) {
+		if (!_btree_insert (key, (uintptr_t)node->child[pos], bt)) {
+			if (node->n == btree_max(bt)) {
+				_btree_split (node, bt, pos);
+				return false;
+			} else {
+				_btree_move_foward (node->data, pos, node->n, bt->sz);
+				_btree_move_foward ((u8*)node->child, pos+1, node->n+1, sizeof (NODE*));
+				_btree_set_element (bt->auxData, node, bt, pos);
+
+				node->child[pos+1] = bt->auxNode;
+				node->n++;
+			}
+		}
+	} else {
+		if (node->n == btree_max(bt)) {
+			_load_btree_aux (bt, key, NULL);
+			_btree_split (node, bt, pos);
+			return false;
+		} else {
+			_btree_move_foward (node->data, pos, node->n, bt->sz);
+			_btree_set_element (key, node, bt, pos);
+			node->n++;
+		}
+	}
+	
+	return true;
 }
