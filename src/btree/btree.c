@@ -17,7 +17,7 @@ BTreeIterator *btree_iterator_begin (TREE bt[restrict const static 1])
 	
 	while (it->node && it->node->index)
 		it->node = _btree_read_node (bt, it->node->child[0]);
-	it->node = _btree_read_node (bt, (uintptr_t)_clone_node_index ((uintptr_t)it->node, bt));
+	it->node = _btree_read_node (bt, (usize)_clone_node_index ((usize)it->node, bt));
 	
 	if (bt->lastError == bTreeErrorOutOfMemory) {
 		btree_iterator_uninit (it);
@@ -110,13 +110,13 @@ void btree_insert (TREE bt[restrict static 1], const void *key)
 		_btree_set_element (key, new, bt, 0);
 		
 		bt->n++;
-		bt->root = (uintptr_t)new;
+		bt->root = (usize)new;
 		
 		_btree_write_node (bt, new);
 		return;
 	}
 	
-	if (!_btree_insert (key, (uintptr_t)bt->root, bt)) {
+	if (!_btree_insert (key, (usize)bt->root, bt)) {
 		NODE *new = _malloc_node (bt, true);
 		
 		if (!new)
@@ -128,7 +128,7 @@ void btree_insert (TREE bt[restrict static 1], const void *key)
 		_btree_set_element (bt->auxData, new, bt, 0);
 		
 		bt->n++;
-		bt->root = (uintptr_t)new;
+		bt->root = (usize)new;
 		
 		_btree_write_node (bt, new);
 	}
