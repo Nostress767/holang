@@ -378,7 +378,9 @@ TEST(btree, btree_all)
 					TEST_ASSERT_EQUAL (data[k].key, search->key);
 				}
 			}
+			
 		}
+		
 	}
 	
 	for (usize i = 0; i < 13; i++) {

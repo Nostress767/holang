@@ -13,11 +13,11 @@ BTreeIterator *btree_iterator_begin (TREE bt[restrict const static 1])
 		return nullptr;
 
 	it->bt = bt;
-	it->node = bt->root;
+	it->node = _btree_read_node (bt, bt->root);
 	
 	while (it->node && it->node->index)
-		it->node = it->node->child[0];
-	it->node = _clone_node_index (it->node, bt);
+		it->node = _btree_read_node (bt, it->node->child[0]);
+	it->node = _btree_read_node (bt, (uintptr_t)_clone_node_index ((uintptr_t)it->node, bt));
 	
 	if (bt->lastError == bTreeErrorOutOfMemory) {
 		btree_iterator_uninit (it);
@@ -40,15 +40,15 @@ BTreeIterator *btree_iterator_begin (TREE bt[restrict const static 1])
 	return it;
 }
 
-void btree_iterator_uninit (BTreeIterator it[restrict const static 1])
+void btree_iterator_uninit (BTreeIterator *it)
 {
 	if (it->node) {
-		NODE *next = it->node->next;
+		NODE *next = _btree_read_node(it->bt, it->node->next);
 		while (next) {
 			free (it->node->data);
 			free (it->node);
 			it->node = next;
-			next = it->node->next;
+			next = _btree_read_node(it->bt, it->node->next);
 		}
 		free (it->node->data);
 		free (it->node);
@@ -63,7 +63,7 @@ void *btree_iterator_get_data (BTreeIterator it[restrict const static 1])
 	return it->data;
 }
 
-bool btree_iterator_end (BTreeIterator it[restrict const static 1])
+bool btree_iterator_end (BTreeIterator *it)
 {
 	if (it->node) {
 		if (it->pos != it->node->n)
@@ -81,7 +81,7 @@ void btree_iterator_next (BTreeIterator it[restrict const static 1])
 		it->pos++;
 		_btree_iterator_load_data (it);
 	} else if (it->node->next) {
-		NODE *next = it->node->next;
+		NODE *next = _btree_read_node(it->bt, it->node->next);
 		free (it->node->data);
 		free (it->node);
 		it->node = next;
@@ -103,18 +103,24 @@ void btree_insert (TREE bt[restrict static 1], const void *key)
 	if (!_btree_root(bt)) {
 		NODE *new = _malloc_node (bt, false);
 		
+		if (!new)
+			return;
+		
 		new->n = 1;
 		_btree_set_element (key, new, bt, 0);
 		
 		bt->n++;
-		bt->root = new;
+		bt->root = (uintptr_t)new;
 		
 		_btree_write_node (bt, new);
 		return;
 	}
 	
-	if (!_btree_insert (key, (usize)bt->root, bt)) {
+	if (!_btree_insert (key, (uintptr_t)bt->root, bt)) {
 		NODE *new = _malloc_node (bt, true);
+		
+		if (!new)
+			return;
 		
 		new->child[0] = bt->root;
 		new->child[1] = bt->auxNode;
@@ -122,7 +128,7 @@ void btree_insert (TREE bt[restrict static 1], const void *key)
 		_btree_set_element (bt->auxData, new, bt, 0);
 		
 		bt->n++;
-		bt->root = new;
+		bt->root = (uintptr_t)new;
 		
 		_btree_write_node (bt, new);
 	}
@@ -142,7 +148,7 @@ TREE *btree_init_with_allocator (const usize sz, const u32 order, int (*compar)(
 		return nullptr;
 	
 	
-	bt->root = nullptr;
+	bt->root = 0;
 	bt->order = order;
 	bt->n = 0;
 	bt->sz = sz;
@@ -154,7 +160,7 @@ TREE *btree_init_with_allocator (const usize sz, const u32 order, int (*compar)(
 		free(bt);
 		return nullptr;
 	}
-	bt->auxNode = nullptr;
+	bt->auxNode = 0;
 	
 	bt->customAllocator = customAllocator;
 	
@@ -163,14 +169,14 @@ TREE *btree_init_with_allocator (const usize sz, const u32 order, int (*compar)(
 
 void btree_erase (TREE bt[restrict static 1], const void *key)
 {
-	if (!bt->root)
+	if (!_btree_root(bt))
 		return;
 	_btree_erase (key, (usize)bt->root, bt);
 }
 
 void btree_uninit (TREE *bt)
 {
-	if (bt->root)
+	if (_btree_root(bt))
 		_btree_uinit (bt, bt->root);
 	free (bt->auxData);
 	free (bt);

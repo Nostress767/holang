@@ -6,11 +6,12 @@ typedef struct NODE
 {
 	u32 n;			     /* Quantity of elements on the node 						       */
 	union {
-		struct NODE **child; /* If the node is used for the index, it has child 				       */
-		struct NODE *next;   /* If the node is used for the linked list, it has next 				       */
+		uintptr_t *child; /* If the node is used for the index, it has child 				       */
+		uintptr_t next;   /* If the node is used for the linked list, it has next 				       */
 	};
 	bool index;		     /* The node can be used for the index or for the linked list, it depends on this variable */
 	u8 *data;		     /* Raw data of elements 								       */
+	bool modified;
 } NODE;
 
 enum BTreeError : u8
@@ -22,13 +23,14 @@ enum BTreeError : u8
 
 typedef struct TREE
 {
-	NODE *root;				     /* Pointer to the root 			       */
+	uintptr_t root;				 /* Pointer to the root 			   */
 	u32 order;				     /* Order of the btree 			       */
 	u32 n;					     /* Quantity of nodes 			       */
 	usize sz;				     /* Size of data 				       */
 	int (*compar)(const void *a, const void *b); /* Comparation function used to sort the elements */
 	void *auxData;				     /* Used for internal operations 		       */
-	NODE *auxNode;				     /* Used for internal operations 		       */
+	uintptr_t auxNode;				 /* Used for internal operations 		       */
+	bool auxIndex;					 /* Used for internal operations 		       */
 	
 	enum BTreeError lastError;
 	
@@ -67,8 +69,8 @@ DLL_X(btree_erase, void, TREE bt[restrict static 1], const void *key)\
 DLL_X(btree_search, void*, TREE bt[restrict const static 1], const void *key)\
 \
 DLL_X(btree_iterator_begin, BTreeIterator*, TREE bt[restrict const static 1])\
-DLL_X(btree_iterator_uninit, void, BTreeIterator it[restrict const static 1])\
-DLL_X(btree_iterator_end, bool, BTreeIterator it[restrict const static 1])\
+DLL_X(btree_iterator_uninit, void, BTreeIterator *it)\
+DLL_X(btree_iterator_end, bool, BTreeIterator *it)\
 DLL_X(btree_iterator_next, void, BTreeIterator it[restrict const static 1])\
 DLL_X(btree_iterator_get_data, void*, BTreeIterator it[restrict const static 1])
 
