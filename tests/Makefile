@@ -6,9 +6,14 @@ INCDIR     := ../include
 SRCDIR     := ../src
 TESTSRCDIR := test
 
-CFLAGS   := -fprofile-abs-path -fsanitize=address -fprofile-arcs -ftest-coverage -fanalyzer -Werror -Wall -Wpedantic -std=c2x -c -ggdb -O0
+CFLAGS   := -fprofile-abs-path -fprofile-arcs -ftest-coverage -fanalyzer -Werror -Wall -Wpedantic -std=c2x -c -ggdb -O0
 CPPFLAGS := -DUNITY_OUTPUT_COLOR -include external/unity.h -include external/unity_memory.h -I$(INCDIR) -I. -finput-charset=UTF-8 -MMD
-LDFLAGS  := -lgcov -fsanitize=address
+LDFLAGS  := -lgcov
+
+ifneq ($(OS),Windows_NT)
+	CFLAGS += -fsanitize=address
+	LDFLAGS += -fsanitize=address
+endif
 
 OBJDIR := obj
 
