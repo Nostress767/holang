@@ -13,6 +13,9 @@ BTreeIterator *btree_iterator_begin (TREE bt[restrict const static 1])
 		return nullptr;
 
 	it->bt = bt;
+	it->data = nullptr;
+	it->pos = 0;
+	it->lastError = bTreeIteratorErrorSuccess;
 	it->node = _btree_read_node (bt, bt->root);
 	
 	while (it->node && it->node->index)
@@ -56,6 +59,7 @@ void btree_iterator_uninit (BTreeIterator *it)
 	
 	free (it->data);
 	free (it);
+	
 }
 
 void *btree_iterator_get_data (BTreeIterator it[restrict const static 1])
@@ -76,7 +80,6 @@ bool btree_iterator_end (BTreeIterator *it)
 
 void btree_iterator_next (BTreeIterator it[restrict const static 1])
 {
-	
 	if (it->pos < it->node->n-1) {
 		it->pos++;
 		_btree_iterator_load_data (it);
@@ -87,8 +90,9 @@ void btree_iterator_next (BTreeIterator it[restrict const static 1])
 		it->node = next;
 		it->pos = 0;
 		_btree_iterator_load_data (it);
-	} else 
+	} else {
 		it->pos++;
+	}
 }
 
 void* btree_search (TREE bt[restrict const static 1], const void *key)
@@ -161,7 +165,8 @@ TREE *btree_init_with_allocator (const usize sz, const u32 order, int (*compar)(
 		return nullptr;
 	}
 	bt->auxNode = 0;
-	
+	bt->auxIndex = false;
+	bt->lastError = bTreeErrorSuccess;
 	bt->customAllocator = customAllocator;
 	
 	return bt;

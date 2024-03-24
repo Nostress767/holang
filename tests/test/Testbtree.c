@@ -154,6 +154,7 @@ TEST (btree, btree_allocator)
 
 TEST (btree, btree_iterator)
 {
+	UnityMalloc_MakeMallocFailAfterCount(-1);
 	usize data;
 	TREE *bt = btree_init(sizeof data, 4, usize_compare);
 	TEST_ASSERT_NOT_NULL(bt);
@@ -165,7 +166,7 @@ TEST (btree, btree_iterator)
 	UnityMalloc_MakeMallocFailAfterCount(0);
 	it = btree_iterator_begin(bt);
 	TEST_ASSERT_NULL(it);
-
+	
 	UnityMalloc_MakeMallocFailAfterCount(-1);
 	data = 0;
 	btree_insert (bt, &data);
@@ -194,7 +195,7 @@ TEST (btree, btree_iterator)
 	btree_insert (bt, &data);
 	data = 3;
 	btree_insert (bt, &data);
-
+	
 	for (it = btree_iterator_begin (bt), data = 0; !btree_iterator_end (it); btree_iterator_next (it), data++) {
 		rData = btree_iterator_get_data (it);
 		TEST_ASSERT_EQUAL (data, *rData);
@@ -204,6 +205,7 @@ TEST (btree, btree_iterator)
 	btree_iterator_uninit (it);
 	
 	btree_uninit(bt);
+	
 }
 
 TEST (btree, btree_search)

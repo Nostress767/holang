@@ -96,6 +96,7 @@ INTERNAL NODE *_clone_node_index (usize n, TREE bt[static 1]) {
 	if (!new)
 		return nullptr;
 	
+	
 	memcpy (new->data, node->data, btree_max(bt) * bt->sz);
 	new->n = node->n;
 	
