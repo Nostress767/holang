@@ -287,14 +287,15 @@ void hash_table_erase(HashTable ht[static 1], const void *key)
 		--foundBucket->entriesAmount;
 		--ht->n;
 
+		const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
+		const usize entryPlace = (abs(value - foundBucket->entries) - hash_table_key_sz(ht)) / entrySz; /* hack to reuse function */
+
 		if(ht->customAllocator){
 			const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
-			u8 *keyValuePos = &foundBucket->entries[foundBucket->entriesAmount * entrySz];
+			u8 *keyValuePos = &foundBucket->entries[entryPlace * entrySz];
 			ht->customAllocator(nullptr, nullptr, entrySz, keyValuePos);
 		}
 
-		const usize entrySz = hash_table_key_sz(ht) + hash_table_value_sz(ht);
-		const usize entryPlace = (abs(value - foundBucket->entries) - hash_table_key_sz(ht)) / entrySz; /* hack to reuse function */
 		if(entryPlace < foundBucket->entriesAmount) /* if not the last element */
 			memcpy(&foundBucket->entries[entryPlace * entrySz], &foundBucket->entries[foundBucket->entriesAmount * entrySz], entrySz); /* swap with the last */
 
