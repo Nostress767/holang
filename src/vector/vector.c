@@ -253,7 +253,7 @@ void vector_insert_at(Vector vec[restrict static 1], const usize index, const vo
 
 void vector_erase_at(Vector vec[static 1], const usize index)
 {
-	if(vector_size(vec) == 0){
+	if(vector_empty(vec)){
 		vec->lastError = vectorErrorEmpty;
 		return;
 	}

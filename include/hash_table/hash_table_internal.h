@@ -41,7 +41,7 @@ INTERNAL void sipround(u32 v[4])
         v[2] = rotl(v[2], 16);
 }
 
-INTERNAL usize _usize_bit_ceil(usize value)
+INTERNAL usize _usize_bit_ceil(const usize value)
 {
 	usize i = 1;
 	while(i < value)

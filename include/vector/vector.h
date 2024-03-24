@@ -1,5 +1,6 @@
 #pragma once
 
+/* TODO: fix restricted application: https://stackoverflow.com/questions/42164445/is-the-restrict-keyword-meaningless-on-parameters-of-unique-pointer-types */
 #include "types.h"
 
 constexpr usize vectorInitialSize = 1 << 7;
@@ -11,7 +12,6 @@ enum VectorError : u32
 	vectorErrorOutOfBounds,
 	vectorErrorEmpty,
 	vectorErrorNullInputData,
-	vectorErrorNullOutputData,
 };
 
 typedef struct Vector
