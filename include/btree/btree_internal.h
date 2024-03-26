@@ -189,6 +189,7 @@ INTERNAL bool _btree_erase (const void *key, usize n, TREE bt[static 1])
 		if (bt->root == n && node->n == 0) {
 			bt->root = 0;
 			_btree_write_node (bt, node);
+			return true;
 		}
 		
 		if (node->n >= btree_min(bt)) {
@@ -393,7 +394,7 @@ INTERNAL void _btree_move_foward (u8 *data, i64 pos, u32 n, usize sz)
 
 INTERNAL void _btree_move_backwards (u8 *data, i64 pos, u32 n, usize sz)
 {
-	memmove (data + max (pos, 0) * sz, data + max (pos, 0)  * sz + sz, max ((i64)(n - pos - 1) * sz, 0));
+	memmove (data + max (pos, 0) * sz, data + max (pos, 0)  * sz + sz, max ((i64)(n - max (pos, 0) - 1) * sz, 0));
 	memset (data + n * sz - sz, 0, sz);
 }
 
