@@ -1,6 +1,6 @@
 #define DLL_HEADER_SOURCE
 #include "str/str_internal.h"
-DEBUG_DEFINE_VTABLE(string)
+DEBUG_DEFINE_VTABLE(str)
 #undef DLL_HEADER_SOURCE
 
 #include <stdlib.h>
@@ -347,8 +347,8 @@ void string_replace(String str[restrict static 1], const char *subStr, const cha
 	const usize finalStringLen = (originalStringLen - n * subStrLen) + n * replacerLen;
 	string_reserve(tmpStr, finalStringLen + 1);
 	if(string_get_last_error(tmpStr) != stringErrorSuccess){
-		string_uninit(tmpStr);
 		str->lastError = string_get_last_error(tmpStr);
+		string_uninit(tmpStr);
 		return;
 	}
 

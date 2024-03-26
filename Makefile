@@ -4,10 +4,20 @@
 
 INCDIR := include
 SRCDIR := src
+EXTDIR := external
 
 CFLAGS   := -Werror -Wall -Wpedantic -std=c2x
 CPPFLAGS := -I$(INCDIR) -finput-charset=UTF-8 -MMD
 LDFLAGS  := 
+
+ifeq ($(OS),Windows_NT)
+	CPPFLAGS += -D_GLFW_WIN32
+	LDFLAGS  += -lgdi32
+else
+	CPPFLAGS += -D_GLFW_WAYLAND -D_GLFW_X11 -D_POSIX_C_SOURCE=200809L
+	LDFLAGS  += -lm
+endif
+
 ifdef DEBUG
 	TARGET   := debug
 	CPPFLAGS += -DDEBUG
@@ -48,7 +58,7 @@ define get_suffix
 	$(call to_suffix,$(addprefix $(OBJDIR)/,$(2)),$(1))
 endef
 
-# Compile recipe with 1° arg compiler and 2° arg flags
+# Compile recipe with arg flags
 define create_src_obj =
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(1) $< -MF $(basename $@).d -o $@
@@ -57,11 +67,13 @@ endef
 #############
 
 # Get all source files recursively
-SRC         := $(shell find $(SRCDIR)/ -type f)
+SRC    := $(shell find $(SRCDIR)/ -type f -name "*.c")
+EXTSRC := $(shell find $(SRCDIR)/$(EXTDIR)/ -type f -name "*.c")
 ifdef DEBUG
-	SRCOBJS     := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.dll,$(filter-out $(SRCDIR)/$(notdir $(basename $(EXE))).c,$(SRC))))
+	EXTERNALOBJS := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(filter-out $(SRCDIR)/$(notdir $(basename $(EXE))).c,$(EXTSRC))))
+	INTERNALOBJS := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.dll,$(filter-out $(SRCDIR)/$(notdir $(basename $(EXE))).c,$(filter-out $(EXTSRC),$(SRC)))))
 else
-	SRCOBJS     := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRC)))
+	SRCOBJS      := $(addprefix $(OBJDIR)/,$(patsubst %.c,%.o,$(SRC)))
 endif
 MAKEFILES   := $(addsuffix .d,$(basename $(SRCOBJS)))
 
@@ -91,11 +103,11 @@ $(call get_suffix,.dll,$(SRC)) : $(OBJDIR)/%.dll : %.c
 ## Compile executable
 
 ifdef DEBUG
-dlls_only: $(SRCOBJS)
+dlls_only: $(INTERNALOBJS)
 
-$(EXE): $(SRCOBJS) $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $(EXE))).o
+$(EXE): $(EXTERNALOBJS) $(INTERNALOBJS) $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $(EXE))).o
 	@mkdir -p target/$(TARGET)
-	$(CC) -o $@ $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $@)).o $(LDFLAGS)
+	$(CC) $(EXTERNALOBJS) -o $@ $(OBJDIR)/$(SRCDIR)/$(notdir $(basename $@)).o $(LDFLAGS)
 else
 $(EXE): $(SRCOBJS)
 	@mkdir -p target/$(TARGET)

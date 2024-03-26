@@ -52,9 +52,14 @@ DLL_X(string_insert_at, void, String str[restrict static 1], const usize index, 
 DLL_X(string_replace, void, String str[restrict static 1], const char *subStr, const char *replacer)\
 DLL_X(string_erase_at , void, String str[restrict static 1], const usize startIndex, const usize amount)\
 DLL_X(string_pop_back , void, String str[restrict static 1])\
-DLL_X(string_clear    , void, String str[restrict static 1])\
+DLL_X(string_clear    , void, String str[restrict static 1])
 
 static inline const char* string_get_data(String str[restrict const static 1])
+{
+	return str->data;
+}
+
+static inline char* string_get_mut_data(String str[restrict const static 1])
 {
 	return str->data;
 }
